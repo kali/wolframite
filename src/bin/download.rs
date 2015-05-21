@@ -1,12 +1,16 @@
+#![feature(path_ext)]
+
 extern crate hyper;
 extern crate regex;
 
+use std::io;
 use std::io::prelude::*;
-use std::io::BufReader;
 use std::fs;
+use std::path;
 
 use regex::Regex;
 use hyper::Client;
+use hyper::header::ContentLength;
 
 fn main() {
     let prefix = "http://dumps.wikimedia.org";
@@ -20,7 +24,7 @@ fn main() {
 
     let mut res = client.get(&summary_url).send().unwrap();
 
-    let buffered = BufReader::new(res);
+    let buffered = io::BufReader::new(res);
     let expr = format!(r#"href="(/{}/{}/{}-{}-pages-articles\d[^\\"]*)""#,
         lang, date, lang, date);
     let re = Regex::new(&*expr).unwrap();
@@ -31,9 +35,18 @@ fn main() {
             let filename = cap.at(1).unwrap();
             let url = prefix.to_string() + "/" + filename;
             let local_filename = "data/download".to_string() + filename;
-            let mut file = fs::File::create(local_filename).unwrap();
+            let path = path::Path::new(&*local_filename);
             let mut res = client.get(&*url).send().unwrap();
-            ::std::io::copy(&mut res, &mut file).unwrap();
+            let size:Option<u64>
+                = res.headers.get::<ContentLength>().map( |x| **x );
+            if size.is_some() && path.exists() &&
+                path.metadata().map( |m| m.len() ).unwrap_or(0)
+                == size.unwrap() {
+                println!("skip {} (size: {})", filename, size.unwrap());
+            } else {
+                let mut file = fs::File::create(path).unwrap();
+                io::copy(&mut res, &mut file).unwrap();
+            }
         }
     }
 
