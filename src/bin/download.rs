@@ -1,7 +1,7 @@
 #![feature(path_ext)]
-
 extern crate hyper;
 extern crate regex;
+extern crate wiki;
 
 use std::io;
 use std::io::prelude::*;
@@ -12,6 +12,8 @@ use regex::Regex;
 use hyper::Client;
 use hyper::header::ContentLength;
 
+use wiki::helpers::*;
+
 fn main() {
     let prefix = "http://dumps.wikimedia.org";
 
@@ -19,7 +21,7 @@ fn main() {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
     let ref date = args[2];
-    fs::create_dir_all(format!("data/download/{}/{}", lang, date)).unwrap();
+    fs::create_dir_all(data_dir_for("download", lang, date)).unwrap();
     let summary_url = format!("{}/{}/{}/", prefix, lang, date);
 
     let mut res = client.get(&summary_url).send().unwrap();
@@ -36,6 +38,7 @@ fn main() {
             let url = prefix.to_string() + "/" + filename;
             let local_filename = "data/download".to_string() + filename;
             let path = path::Path::new(&*local_filename);
+
             let mut res = client.get(&*url).send().unwrap();
             let size:Option<u64>
                 = res.headers.get::<ContentLength>().map( |x| **x );

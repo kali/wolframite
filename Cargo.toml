@@ -7,3 +7,5 @@ authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
 hyper = "*"
 glob = "*"
 regex = "*"
+bzip2 = "*"
+xml-rs = "*"
