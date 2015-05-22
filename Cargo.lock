@@ -6,12 +6,18 @@ dependencies = [
  "glob 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
+ "snzip 0.1.0 (git+https://github.com/kali/snzip-rs.git)",
  "xml-rs 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "bitflags"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "byteorder"
+version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -176,6 +182,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "rustc-serialize"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "snappy"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "snzip"
+version = "0.1.0"
+source = "git+https://github.com/kali/snzip-rs.git#08ee1c490c30187ff92d2c86c868e6a468780122"
+dependencies = [
+ "byteorder 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "snappy 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "tempdir"

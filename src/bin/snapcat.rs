@@ -9,8 +9,7 @@ fn main() {
     let ref lang = args[1];
     let ref date = args[2];
 
-    let mut source = wiki::helpers::bzcat(lang, date).unwrap();
+    let mut source = wiki::helpers::snappycat(lang, date).unwrap();
     io::copy(&mut source, &mut io::stdout());
 }
-
 

@@ -4,6 +4,7 @@ use std::io::prelude::*;
 use std::fs;
 
 use bzip2::reader::BzDecompressor;
+use snzip;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -59,7 +60,7 @@ impl<T:Read> Read for ReadChain<T> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize,io::Error> {
         while self.position < self.inner.len() {
             let sent = try!(self.inner[self.position].read(buf));
-            if(sent > 0) {
+            if sent > 0 {
                 return Ok(sent);
             }
             self.position += 1;
@@ -68,12 +69,23 @@ impl<T:Read> Read for ReadChain<T> {
     }
 }
 
-pub fn cat(lang:&str, date:&str) -> Result<ReadChain<BzDecompressor<fs::File>>, WikiError> {
+pub fn bzcat(lang:&str, date:&str) -> Result<ReadChain<BzDecompressor<fs::File>>, WikiError> {
     let glob = data_dir_for("download", lang, date) + "/*.bz2";
     let decompressors:Result<Vec<BzDecompressor<fs::File>>,WikiError> =
         try!(::glob::glob(&glob)).map(|entry| {
             let file = try!(fs::File::open(try!(entry)));
             Ok(BzDecompressor::new(file))
+    }).collect();
+    let decompressors = try!(decompressors);
+    Ok(ReadChain::new(decompressors))
+}
+
+pub fn snappycat(lang:&str, date:&str) -> Result<ReadChain<snzip::Decompressor<fs::File>>, WikiError> {
+    let glob = data_dir_for("snappy", lang, date) + "/*.sz";
+    let decompressors:Result<Vec<snzip::Decompressor<fs::File>>,WikiError> =
+        try!(::glob::glob(&glob)).map(|entry| {
+            let file = try!(fs::File::open(try!(entry)));
+            Ok(snzip::Decompressor::new(file))
     }).collect();
     let decompressors = try!(decompressors);
     Ok(ReadChain::new(decompressors))
