@@ -4,5 +4,7 @@ use wiki::helpers::*;
 use std::io;
 
 fn main() {
-    pages(io::stdin()).unwrap();
+    for page in pages_from_xml(io::stdin()).unwrap() {
+        println!("{:?}", page);
+    }
 }

@@ -1,4 +1,3 @@
-
 use std::io;
 use std::io::prelude::*;
 use std::fs;
@@ -15,34 +14,79 @@ pub fn data_dir_for(state:&str, lang:&str, date:&str) -> String {
     format!("data/{}/{}/{}", state, lang, date)
 }
 
-fn indent(size: usize) -> String {
-    const INDENT: &'static str = "    ";
-    (0..size).map(|_| INDENT)
-             .fold(String::with_capacity(size*INDENT.len()), |r, s| r + s)
+pub type WikiResult<R> = Result<R, WikiError>;
+
+#[derive(Debug)]
+pub struct Page {
+    title:String,
+    text:String,
 }
 
-pub fn pages<R:Read>(read:R) -> Result<(),WikiError> {
-    let mut parser = EventReader::new(read);
-    let mut depth = 0;
-    for e in parser.events() {
-        match e {
-            XmlEvent::StartElement { name, .. } => {
-                println!("{}+{}", indent(depth), name.local_name);
-                depth+=1;
+pub struct PagesFromXml<R : Read> {
+    parser:EventReader<R>
+}
+
+impl <R : Read> Iterator for PagesFromXml<R> {
+    type Item = WikiResult<Page>;
+
+    fn next(&mut self) -> Option<WikiResult<Page>> {
+        #[derive(PartialEq)]
+        enum State {
+            Nowhere, InTitle, InText
+        };
+        let mut state:State = State::Nowhere;
+        let mut page = Page { title: String::new(), text: String::new() };
+        for e in self.parser.events() {
+            match e {
+                XmlEvent::StartElement { ref name, .. }
+                    if state == State::Nowhere && name.local_name == "title" => {
+                    state = State::InTitle;
+                }
+                XmlEvent::StartElement { ref name, .. }
+                    if state == State::Nowhere && name.local_name == "text" => {
+                    state = State::InText;
+                }
+                XmlEvent::EndElement { ref name }
+                    if state == State::InTitle && name.local_name == "title" => {
+                    state = State::Nowhere;
+                }
+                XmlEvent::EndElement { ref name }
+                    if state == State::InText && name.local_name == "text" => {
+                    state = State::Nowhere;
+                }
+                XmlEvent::EndElement { ref name } if name.local_name == "page" => {
+                    return Some(Ok(page))
+                }
+                XmlEvent::Characters(ref content) if state == State::InTitle =>
+                    page.title.push_str(&*content),
+                XmlEvent::Characters(ref content) if state == State::InText =>
+                    page.text.push_str(&*content),
+                XmlEvent::Whitespace(ref content) if state == State::InTitle =>
+                    page.title.push_str(&*content),
+                XmlEvent::Whitespace(ref content) if state == State::InText =>
+                    page.text.push_str(&*content),
+                XmlEvent::Error(e) => {
+                    println!("Error: {}", e);
+                    break;
+                }
+                _ => {}
             }
-            XmlEvent::EndElement { name } => {
-                depth -= 1;
-                println!("{}-{}", indent(depth), name.local_name);
-            }
-            XmlEvent::Error(e) => {
-                println!("Error: {}", e);
-                break;
-            }
-            _ => {}
         }
+        None
+    }
+}
+
+pub fn pages_from_xml<R:Read>(read:R) -> WikiResult<PagesFromXml<R>> {
+    let parser = EventReader::new(read);
+    Ok(PagesFromXml{ parser:parser })
+}
+
+/*
+pub fn pages<R:Read>(read:R) -> WikiResult<()> {
     }
     Ok( () )
 }
+*/
 
 pub struct ReadChain<T:Read> {
     position: usize,

@@ -24,7 +24,7 @@ fn main() {
     fs::create_dir_all(data_dir_for("download", lang, date)).unwrap();
     let summary_url = format!("{}/{}/{}/", prefix, lang, date);
 
-    let mut res = client.get(&summary_url).send().unwrap();
+    let res = client.get(&summary_url).send().unwrap();
 
     let buffered = io::BufReader::new(res);
     let expr = format!(r#"href="(/{}/{}/{}-{}-pages-articles\d[^\\"]*)""#,

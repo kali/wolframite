@@ -1,4 +1,3 @@
-#![feature(path_ext)]
 extern crate wiki;
 
 use wiki::helpers::*;
@@ -10,6 +9,6 @@ fn main() {
     let ref date = args[2];
 
     let mut source = wiki::helpers::snappycat(lang, date).unwrap();
-    io::copy(&mut source, &mut io::stdout());
+    io::copy(&mut source, &mut io::stdout()).unwrap();
 }
 
