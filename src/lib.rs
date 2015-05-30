@@ -1,7 +1,7 @@
 extern crate glob;
 extern crate bzip2;
 extern crate xml;
-extern crate snzip;
+extern crate snappy_framed;
 
 use std::io;
 //use std::fs;

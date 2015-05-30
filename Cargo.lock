@@ -2,11 +2,12 @@
 name = "wiki"
 version = "0.1.0"
 dependencies = [
+ "bson-rs 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bzip2 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "glob 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.1.30 (registry+https://github.com/rust-lang/crates.io-index)",
- "snzip 0.1.0 (git+https://github.com/kali/snzip-rs.git)",
+ "snappy_framed 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "xml-rs 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -14,6 +15,16 @@ dependencies = [
 name = "bitflags"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "bson-rs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "byteorder 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chrono 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "byteorder"
@@ -39,6 +50,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "chrono"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "num 0.1.24 (registry+https://github.com/rust-lang/crates.io-index)",
+ "time 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "cookie"
 version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -47,6 +67,14 @@ dependencies = [
  "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "time 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "url 0.2.34 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "crc"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "lazy_static 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -123,6 +151,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "num"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "rand 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "num_cpus"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -192,11 +229,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "snzip"
+name = "snappy_framed"
 version = "0.1.0"
-source = "git+https://github.com/kali/snzip-rs.git#08ee1c490c30187ff92d2c86c868e6a468780122"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "byteorder 0.3.10 (registry+https://github.com/rust-lang/crates.io-index)",
+ "crc 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "snappy 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

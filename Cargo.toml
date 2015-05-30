@@ -9,6 +9,5 @@ glob = "*"
 regex = "*"
 bzip2 = "*"
 xml-rs = "*"
-
-[dependencies.snzip]
-git = "https://github.com/kali/snzip-rs.git"
+bson-rs = "*"
+snappy_framed = "*"

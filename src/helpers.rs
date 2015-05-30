@@ -3,7 +3,8 @@ use std::io::prelude::*;
 use std::fs;
 
 use bzip2::reader::BzDecompressor;
-use snzip;
+use snappy_framed::read::SnappyFramedDecoder;
+use snappy_framed::read::CrcMode;
 
 use xml::reader::EventReader;
 use xml::reader::events::*;
@@ -124,13 +125,15 @@ pub fn bzcat(lang:&str, date:&str) -> Result<ReadChain<BzDecompressor<fs::File>>
     Ok(ReadChain::new(decompressors))
 }
 
-pub fn snappycat(lang:&str, date:&str) -> Result<ReadChain<snzip::Decompressor<fs::File>>, WikiError> {
+pub fn snappycat(lang:&str, date:&str) -> Result<ReadChain<SnappyFramedDecoder<fs::File>>, WikiError> {
     let glob = data_dir_for("snappy", lang, date) + "/*.sz";
-    let decompressors:Result<Vec<snzip::Decompressor<fs::File>>,WikiError> =
+    let decompressors:Result<Vec<SnappyFramedDecoder<fs::File>>,WikiError> =
         try!(::glob::glob(&glob)).map(|entry| {
             let file = try!(fs::File::open(try!(entry)));
-            Ok(snzip::Decompressor::new(file))
+            Ok(SnappyFramedDecoder::new(file, CrcMode::Ignore))
     }).collect();
     let decompressors = try!(decompressors);
     Ok(ReadChain::new(decompressors))
 }
+
+
