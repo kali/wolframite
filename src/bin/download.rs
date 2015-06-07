@@ -31,26 +31,33 @@ fn main() {
         lang, date, lang, date);
     let re = Regex::new(&*expr).unwrap();
 
+    let mut files = vec![];
     for line in buffered.lines() {
         let line = line.unwrap();
         for cap in re.captures_iter(&*line) {
-            let filename = cap.at(1).unwrap();
-            let url = prefix.to_string() + "/" + filename;
-            let local_filename = "data/download".to_string() + filename;
-            let path = path::Path::new(&*local_filename);
-
-            let mut res = client.get(&*url).send().unwrap();
-            let size:Option<u64>
-                = res.headers.get::<ContentLength>().map( |x| **x );
-            if size.is_some() && path.exists() &&
-                path.metadata().map( |m| m.len() ).unwrap_or(0)
-                == size.unwrap() {
-                println!("skip {} (size: {})", filename, size.unwrap());
-            } else {
-                let mut file = fs::File::create(path).unwrap();
-                io::copy(&mut res, &mut file).unwrap();
-            }
+            files.push(cap.at(1).unwrap().to_string());
         }
     }
 
+    if files.len() == 0 {
+        files.push(format!("/{}/{}/{}-{}-pages-articles.xml.bz2", lang, date, lang, date));
+    }
+
+    for filename in files {
+        let url = prefix.to_string() + "/" + &*filename;
+        let local_filename = "data/download".to_string() + &*filename;
+        let path = path::Path::new(&*local_filename);
+
+        let mut res = client.get(&*url).send().unwrap();
+        let size:Option<u64>
+            = res.headers.get::<ContentLength>().map( |x| **x );
+        if size.is_some() && path.exists() &&
+            path.metadata().map( |m| m.len() ).unwrap_or(0)
+            == size.unwrap() {
+            println!("skip {} (size: {})", filename, size.unwrap());
+        } else {
+            let mut file = fs::File::create(path).unwrap();
+            io::copy(&mut res, &mut file).unwrap();
+        }
+    }
 }

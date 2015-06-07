@@ -82,13 +82,6 @@ pub fn pages_from_xml<R:Read>(read:R) -> WikiResult<PagesFromXml<R>> {
     Ok(PagesFromXml{ parser:parser })
 }
 
-/*
-pub fn pages<R:Read>(read:R) -> WikiResult<()> {
-    }
-    Ok( () )
-}
-*/
-
 pub struct ReadChain<T:Read> {
     position: usize,
     inner: Vec<T>
@@ -135,5 +128,3 @@ pub fn snappycat(lang:&str, date:&str) -> Result<ReadChain<SnappyFramedDecoder<f
     let decompressors = try!(decompressors);
     Ok(ReadChain::new(decompressors))
 }
-
-
