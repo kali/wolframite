@@ -3,7 +3,7 @@
 struct Page {
     id @0: UInt64;
     title @1: Text;
-    ns @2: UInt8;
+    ns @2: UInt16;
     union {
         redirect @3: Text;
         text @4: Text;

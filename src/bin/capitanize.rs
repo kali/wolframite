@@ -29,21 +29,19 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     try!(fs::create_dir_all(target_root.clone()));
     let glob = source_root.clone() + "/*.bz2";
     for entry in try!(::glob::glob(&glob)) {
-        let entry = try!(entry);
-        let mut target = path::PathBuf::from(
-            target_root.clone()+&entry.to_str().unwrap()[source_root.len() ..]
-        );
-        target.set_extension(".cap.snap");
-        try!(capitanize_file(&*entry, &path::Path::new(&*target)));
+        let entry:String = try!(entry).to_str().unwrap().to_string();
+        let mut target =
+            target_root.clone()
+            + &entry[source_root.len() .. entry.len()-7]
+            + "cap.snappy";
+        try!(capitanize_file(&path::Path::new(&*entry), &path::Path::new(&*target)));
     };
     Ok( () )
 }
 
 pub fn capitanize_file(src:&path::Path, dst:&path::Path) -> Result<(), WikiError> {
     let mut input = BzDecompressor::new(try!(fs::File::open(src)));
-    //let output = SnappyFramedEncoder::new(fs::File::create(dst));
-    let mut output = try!(fs::File::create(dst));
-    println!("{:?}", src);
+    let output = try!(SnappyFramedEncoder::new(try!(fs::File::create(dst))));
     try!(cap::capitanize(input, output));
     Ok( () )
 }
