@@ -9,8 +9,6 @@ use wiki::WikiError;
 use wiki::helpers::*;
 use wiki::cap;
 
-use std::io;
-use std::io::prelude::*;
 use std::fs;
 
 use std::path;
@@ -34,10 +32,10 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     let jobs:Result<Vec<(path::PathBuf,path::PathBuf)>,WikiError> =
         try!(::glob::glob(&glob)).map( |entry| {
             let entry:String = try!(entry).to_str().unwrap().to_string();
-            let mut target =
+            let target =
                 target_root.clone()
                 + &entry[source_root.len() .. entry.len()-7]
-                + "cap.snappy";
+                + ".cap.snappy";
             Ok((path::PathBuf::from(&*entry), path::PathBuf::from(&target)))
     }).collect();
     let task = |job:(path::PathBuf,path::PathBuf)| { capitanize_file(&*job.0, &*job.1) };
@@ -47,7 +45,7 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
 }
 
 pub fn capitanize_file(src:&path::Path, dst:&path::Path) -> Result<(), WikiError> {
-    let mut input = BzDecompressor::new(try!(fs::File::open(src)));
+    let input = BzDecompressor::new(try!(fs::File::open(src)));
     let output = try!(SnappyFramedEncoder::new(try!(fs::File::create(dst))));
     try!(cap::capitanize(input, output));
     Ok( () )

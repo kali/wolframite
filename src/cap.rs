@@ -3,13 +3,35 @@ use xml::reader::events::*;
 
 use WikiError;
 use std::io;
+use std::error::Error;
 use std::io::prelude::*;
 use std::iter;
 
-use wiki_capnp::page as Page;
-
+use capnp;
 use capnp::serialize_packed;
 use capnp::{MessageBuilder, MallocMessageBuilder};
+use capnp::message::MessageReader;
+
+use wiki_capnp::page as Page;
+
+pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
+    let options = capnp::message::ReaderOptions::new();
+    let mut stream = io::BufReader::new(r);
+    loop {
+        match serialize_packed::read_message(&mut stream, options) {
+            Ok(msg) => {
+                let page:Page::Reader = try!(msg.get_root());
+            },
+            Err(err) => {
+                if err.description().contains("Premature EOF") {
+                    return Ok( () )
+                } else {
+                    return Err(WikiError::from(err))
+                }
+            }
+        }
+    }
+}
 
 pub fn capitanize<R:io::Read, W:io::Write>(mut input:R, mut output:W) -> Result<(),WikiError> {
     let mut parser = EventReader::new(input);
