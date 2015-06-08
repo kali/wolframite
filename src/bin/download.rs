@@ -14,15 +14,36 @@ use hyper::header::ContentLength;
 
 use wiki::helpers::*;
 
+const PREFIX:&'static str = "http://dumps.wikimedia.org";
+
+fn latest(lang:&str, item:&str) -> Option<String> {
+    let mut client = Client::new();
+    let rss_url = format!("{}/{}/latest/{}-latest-{}-rss.xml", PREFIX, lang, lang, item);
+    let res = client.get(&rss_url).send().unwrap();
+    let buffered = io::BufReader::new(res);
+    let re = Regex::new(r#"<link>.*/(20\d+)</link>"#).unwrap();
+    for line in buffered.lines() {
+        let line = line.unwrap();
+        for cap in re.captures_iter(&*line) {
+            return Some(cap.at(1).unwrap().to_string());
+        }
+    }
+    None
+}
+
 fn main() {
-    let prefix = "http://dumps.wikimedia.org";
 
     let mut client = Client::new();
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
-    let ref date = args[2];
-    fs::create_dir_all(data_dir_for("download", lang, date)).unwrap();
-    let summary_url = format!("{}/{}/{}/", prefix, lang, date);
+    let mut date = args[2].to_string();
+    if date == "latest" {
+        date = latest(lang, "pages-articles.xml.bz2").unwrap();
+    }
+    println!("lang:{} date:{}", lang, &*date);
+    fs::create_dir_all(data_dir_for("download", lang, &*date)).unwrap();
+
+    let summary_url = format!("{}/{}/{}/", PREFIX, lang, &*date);
 
     let res = client.get(&summary_url).send().unwrap();
 
@@ -44,7 +65,7 @@ fn main() {
     }
 
     for filename in files {
-        let url = prefix.to_string() + "/" + &*filename;
+        let url = PREFIX.to_string() + "/" + &*filename;
         let local_filename = "data/download".to_string() + &*filename;
         let path = path::Path::new(&*local_filename);
 
