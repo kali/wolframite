@@ -17,7 +17,6 @@ use std::fs::PathExt;
 use std::path;
 
 use bzip2::reader::BzDecompressor;
-use snappy_framed::write::SnappyFramedEncoder;
 
 fn main() {
     let args:Vec<String> = std::env::args().collect();
@@ -37,8 +36,7 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
             let entry:String = try!(entry).to_str().unwrap().to_string();
             let target =
                 target_root.clone()
-                + &entry[source_root.len() .. entry.len()-7]
-                + ".cap.snappy";
+                + &entry[source_root.len() .. entry.find(".").unwrap()];
             Ok((path::PathBuf::from(&*entry), path::PathBuf::from(&target)))
     }).collect();
     let mut jobs = try!(jobs);
@@ -51,7 +49,7 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
 
 pub fn capitanize_file(src:&path::Path, dst:&path::Path) -> Result<(), WikiError> {
     let input = BzDecompressor::new(try!(fs::File::open(src)));
-    let output = try!(SnappyFramedEncoder::new(try!(fs::File::create(dst))));
-    try!(cap::capitanize(input, output));
+//    let output = try!(SnappyFramedEncoder::new(try!(fs::File::create(dst))));
+    try!(cap::capitanize_and_slice(input, dst));
     Ok( () )
 }

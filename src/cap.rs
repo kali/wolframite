@@ -3,9 +3,11 @@ use xml::reader::events::*;
 
 use WikiError;
 use std::io;
+use std::fs;
 use std::error::Error;
 use std::io::prelude::*;
 use std::iter;
+use std::path;
 
 use capnp;
 use capnp::serialize_packed;
@@ -13,6 +15,8 @@ use capnp::{MessageBuilder, MallocMessageBuilder};
 use capnp::message::MessageReader;
 
 use wiki_capnp::page as Page;
+
+use snappy_framed::write::SnappyFramedEncoder;
 
 pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
     let options = capnp::message::ReaderOptions::new();
@@ -31,6 +35,37 @@ pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
             }
         }
     }
+}
+
+pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Result<(),WikiError> {
+    let mut parser = EventReader::new(input);
+    let mut iterator = parser.events();
+    let mut counter = 0;
+    let size = 10000;
+    let open_one = |counter| {
+        let filename = format!("{}-part-{:05}.cap.snap",
+            output.to_str().unwrap(), counter/size);
+        SnappyFramedEncoder::new(fs::File::create(filename).unwrap()).unwrap()
+    };
+    let mut part:SnappyFramedEncoder<_> = open_one(counter);
+    while let Some(ref e) = iterator.next() {
+        match e {
+            &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
+                let mut message = MallocMessageBuilder::new_default();
+                {
+                    let mut page = message.init_root::<Page::Builder>();
+                    try!(consume_page(&mut iterator, &mut page));
+                }
+                if counter % size == 0 {
+                    part = open_one(counter);
+                }
+                try!(serialize_packed::write_message(&mut part, &mut message));
+                counter += 1;
+            },
+            _ => ()
+        }
+    }
+    Ok(())
 }
 
 pub fn capitanize<R:io::Read, W:io::Write>(mut input:R, mut output:W) -> Result<(),WikiError> {
