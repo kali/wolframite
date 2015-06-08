@@ -41,7 +41,7 @@ pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Resu
     let mut parser = EventReader::new(input);
     let mut iterator = parser.events();
     let mut counter = 0;
-    let size = 10000;
+    let size = 50000;
     let open_one = |counter| {
         let filename = format!("{}-part-{:05}.cap.snap",
             output.to_str().unwrap(), counter/size);
