@@ -1,3 +1,5 @@
+//#![feature(path_ext)]
+
 extern crate glob;
 extern crate bzip2;
 extern crate xml;

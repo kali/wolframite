@@ -1,3 +1,4 @@
+
 use xml::reader::{ EventReader, Events };
 use xml::reader::events::*;
 
@@ -83,27 +84,28 @@ pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
 pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Result<(),WikiError> {
     let mut parser = EventReader::new(input);
     let mut iterator = parser.events();
-    let mut counter = 0;
-    let size = 100000;
-    let open_one = |counter| {
-        let filename = format!("{}-part-{:05}.cap.snap",
-            output.to_str().unwrap(), counter/size);
-        SnappyFramedEncoder::new(fs::File::create(filename).unwrap()).unwrap()
-    };
-    let mut part:SnappyFramedEncoder<_> = open_one(counter);
+    let mut part_counter = 0;
+    let mut counter = 0u64;
+    let mut path = path::PathBuf::new();
+    let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);
     while let Some(ref e) = iterator.next() {
         match e {
             &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
+                if part.is_none() || (counter % 1000 == 0 &&
+                        try!(fs::metadata(&path)).len() > 250_000_000) {
+                    path = path::PathBuf::from(format!("{}-part-{:05}.cap.snap",
+                        output.to_str().unwrap(), part_counter));
+                    part_counter+=1;
+                    part =
+                        Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
+                }
                 let mut message = MallocMessageBuilder::new_default();
                 {
                     let mut page = message.init_root::<Page::Builder>();
                     try!(consume_page(&mut iterator, &mut page));
                 }
-                if counter % size == 0 {
-                    part = open_one(counter);
-                }
-                try!(serialize_packed::write_message(&mut part, &mut message));
                 counter += 1;
+                try!(serialize_packed::write_message(&mut part.as_mut().unwrap(), &mut message));
             },
             _ => ()
         }
