@@ -21,8 +21,12 @@ use bzip2::reader::BzDecompressor;
 fn main() {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
-    let ref date = args[2];
-    capitanize(lang, date).unwrap();
+    let date:String = if args[2] == "latest" {
+        latest("download", lang).unwrap().unwrap()
+    } else {
+        args[2].to_string()
+    };
+    capitanize(lang, &*date).unwrap();
 }
 
 pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
@@ -44,12 +48,12 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     let task = |job:(path::PathBuf,path::PathBuf)| { capitanize_file(&*job.0, &*job.1) };
     let result:Result<Vec<()>,WikiError> = unsafe { pool.map(jobs, &task).collect() };
     try!(result);
+    fs::File::create(format!("data/cap/{}/{}/ok", lang, &*date)).unwrap();
     Ok( () )
 }
 
 pub fn capitanize_file(src:&path::Path, dst:&path::Path) -> Result<(), WikiError> {
     let input = BzDecompressor::new(try!(fs::File::open(src)));
-//    let output = try!(SnappyFramedEncoder::new(try!(fs::File::create(dst))));
     try!(cap::capitanize_and_slice(input, dst));
     Ok( () )
 }

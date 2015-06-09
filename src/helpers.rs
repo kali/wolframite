@@ -11,6 +11,16 @@ use xml::reader::events::*;
 
 use WikiError;
 
+pub fn latest(state:&str, lang:&str) -> Result<Option<String>,WikiError> {
+    let glob = format!("data/{}/{}/*/ok", state, lang);
+    let mut dirs:Vec<_> = try!(try!(::glob::glob(&glob)).collect());
+    dirs.sort();
+    Ok(dirs.last()
+        .and_then(|p| p.iter().nth(3))
+        .and_then(|t| t.to_str())
+        .map(|s| s.to_string()))
+}
+
 pub fn data_dir_for(state:&str, lang:&str, date:&str) -> String {
     format!("data/{}/{}/{}", state, lang, date)
 }

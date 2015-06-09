@@ -18,6 +18,49 @@ use wiki_capnp::page as Page;
 
 use snappy_framed::write::SnappyFramedEncoder;
 
+pub type WikiResult<T> = Result<T,WikiError>;
+
+pub struct MessageAndPage {
+    message:capnp::serialize::OwnedSpaceMessageReader
+}
+
+impl MessageAndPage {
+    pub fn as_page_reader(&self) -> WikiResult<Page::Reader> {
+        self.message.get_root().map_err( |e| WikiError::from(e))
+    }
+}
+
+pub struct PagesReader<R:io::Read> {
+    options: capnp::message::ReaderOptions,
+    stream: io::BufReader<R>,
+}
+
+impl <R:io::Read> PagesReader<R> {
+    pub fn new(r:R) -> PagesReader<R> {
+        PagesReader {
+            options:capnp::message::ReaderOptions::new(),
+            stream:io::BufReader::new(r),
+        }
+    }
+}
+
+impl <R:io::Read> Iterator for PagesReader<R> {
+    type Item = WikiResult<MessageAndPage>;
+
+    fn next(&mut self) -> Option<WikiResult<MessageAndPage>> {
+        match serialize_packed::read_message(&mut self.stream, self.options) {
+            Ok(msg) => { Some(Ok(MessageAndPage { message:msg })) },
+            Err(err) => {
+                if err.description().contains("Premature EOF") {
+                    return None
+                } else {
+                    return Some(Err(WikiError::from(err)))
+                }
+            }
+        }
+    }
+}
+
 pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
     let options = capnp::message::ReaderOptions::new();
     let mut stream = io::BufReader::new(r);
@@ -41,7 +84,7 @@ pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Resu
     let mut parser = EventReader::new(input);
     let mut iterator = parser.events();
     let mut counter = 0;
-    let size = 50000;
+    let size = 100000;
     let open_one = |counter| {
         let filename = format!("{}-part-{:05}.cap.snap",
             output.to_str().unwrap(), counter/size);

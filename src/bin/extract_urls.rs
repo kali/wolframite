@@ -18,12 +18,22 @@ fn main() {
 fn run() -> Result<(), WikiError> {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
-    let ref date = args[2];
-    let cap_root = data_dir_for("cap", lang, date);
-    let glob = cap_root.clone() + "/*cap.snappy";
+    let date:String = if args[2] == "latest" {
+        latest("cap", lang).unwrap().unwrap()
+    } else {
+        args[2].to_string()
+    };
+    let cap_root = data_dir_for("cap", lang, &*date);
+    let glob = cap_root.clone() + "/*cap.snap";
     for entry in try!(::glob::glob(&glob)) {
         let input:fs::File = try!(fs::File::open(try!(entry)));
-        try!(cap::read_pages(SnappyFramedDecoder::new(input, Ignore)));
+        let input = SnappyFramedDecoder::new(input, Ignore);
+        let reader = cap::PagesReader::new(input);
+        for page in reader {
+            let page = try!(page);
+            let reader = try!(page.as_page_reader());
+            println!("{}", try!(reader.get_title()));
+        }
     }
     Ok( () )
 }

@@ -16,7 +16,7 @@ use wiki::helpers::*;
 
 const PREFIX:&'static str = "http://dumps.wikimedia.org";
 
-fn latest(lang:&str, item:&str) -> Option<String> {
+fn latest_available(lang:&str, item:&str) -> Option<String> {
     let mut client = Client::new();
     let rss_url = format!("{}/{}/latest/{}-latest-{}-rss.xml", PREFIX, lang, lang, item);
     let res = client.get(&rss_url).send().unwrap();
@@ -31,6 +31,8 @@ fn latest(lang:&str, item:&str) -> Option<String> {
     None
 }
 
+
+
 fn main() {
 
     let mut client = Client::new();
@@ -38,7 +40,7 @@ fn main() {
     let ref lang = args[1];
     let mut date = args[2].to_string();
     if date == "latest" {
-        date = latest(lang, "pages-articles.xml.bz2").unwrap();
+        date = latest_available(lang, "pages-articles.xml.bz2").unwrap();
     }
     println!("lang:{} date:{}", lang, &*date);
     fs::create_dir_all(data_dir_for("download", lang, &*date)).unwrap();
@@ -81,4 +83,5 @@ fn main() {
             io::copy(&mut res, &mut file).unwrap();
         }
     }
+    fs::File::create(format!("data/download/{}/{}/ok", lang, &*date)).unwrap();
 }
