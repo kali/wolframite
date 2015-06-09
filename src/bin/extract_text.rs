@@ -2,14 +2,11 @@ extern crate wiki;
 extern crate glob;
 extern crate capnp;
 extern crate snappy_framed;
-extern crate regex;
 
 use wiki::cap;
 use wiki::WikiError;
 use wiki::helpers::*;
 use std::fs;
-
-use regex::Regex;
 
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode::Ignore;
@@ -19,7 +16,6 @@ fn main() {
 }
 
 fn run() -> Result<(), WikiError> {
-    let re = Regex::new(r#"\[(http.*?) .*\]"#).unwrap();
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
     let date:String = if args[2] == "latest" {
@@ -37,16 +33,14 @@ fn run() -> Result<(), WikiError> {
             use wiki::wiki_capnp::page::Which::{Text,Redirect};
             let page = try!(page);
             let reader = try!(page.as_page_reader());
-            match try!(reader.which()) {
-                Text(text) => {
-                    let text = try!(text);
-                    for cap in re.captures_iter(text) {
-                        println!("{}\t{}\t{}\t{}", lang, date, try!(reader.get_title()), cap.at(1).unwrap());
-                    }
-                },
-                Redirect(_) => {}
+            if try!(reader.get_title()) == args[3] {
+                match try!(reader.which()) {
+                    Text(text) => { println!("{}", try!(text)); },
+                    Redirect(red) => { println!("REDIRECT {}", try!(red)); }
+                }
+                return Ok( () )
             }
         }
     }
-    Ok( () )
+    Err(WikiError::Other("not found".to_string()))
 }

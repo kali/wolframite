@@ -14,7 +14,7 @@ use capnp::serialize_packed;
 use capnp::{MessageBuilder, MallocMessageBuilder};
 use capnp::message::MessageReader;
 
-use wiki_capnp::page as Page;
+pub use wiki_capnp::page as Page;
 
 use snappy_framed::write::SnappyFramedEncoder;
 

@@ -12,7 +12,7 @@ use std::io;
 pub mod helpers;
 pub mod cap;
 
-mod wiki_capnp {
+pub mod wiki_capnp {
     include!("./schema/wiki_capnp.rs");
 }
 
@@ -22,7 +22,8 @@ pub enum WikiError {
     Io(io::Error),
     GlobPattern(glob::PatternError),
     Glob(glob::GlobError),
-    Capnp(capnp::Error)
+    Capnp(capnp::Error),
+    Other(String)
 }
 
 impl From<io::Error> for WikiError {
@@ -46,5 +47,11 @@ impl From<glob::GlobError> for WikiError {
 impl From<capnp::Error> for WikiError {
     fn from(err: capnp::Error) -> WikiError {
         WikiError::Capnp(err)
+    }
+}
+
+impl From<capnp::NotInSchema> for WikiError {
+    fn from(err: capnp::NotInSchema) -> WikiError {
+        WikiError::Other("Not in cap schema.".to_string())
     }
 }
