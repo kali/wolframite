@@ -10,6 +10,7 @@ struct Page {
         wikibaseitem @1;
         css @2;
         javascript @3;
+        scribunto @4;
     }
     union {
         redirect @3: Text;
