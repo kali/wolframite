@@ -1,6 +1,6 @@
-extern crate wiki;
+extern crate wolframite;
 
-use wiki::helpers::*;
+use wolframite::helpers;
 use std::io;
 
 fn main() {
@@ -8,7 +8,7 @@ fn main() {
     let ref lang = args[1];
     let ref date = args[2];
 
-    let mut source = wiki::helpers::bzcat(lang, date).unwrap();
+    let mut source = helpers::bzcat(lang, date).unwrap();
     io::copy(&mut source, &mut io::stdout()).unwrap();
 }
 

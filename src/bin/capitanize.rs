@@ -1,15 +1,15 @@
 #![feature(path_ext)]
 
-extern crate wiki;
+extern crate wolframite;
 extern crate glob;
 extern crate bzip2;
 extern crate snappy_framed;
 extern crate simple_parallel;
 extern crate num_cpus;
 
-use wiki::WikiError;
-use wiki::helpers::*;
-use wiki::cap;
+use wolframite::WikiError;
+use wolframite::helpers;
+use wolframite::cap;
 
 use std::fs;
 use std::fs::PathExt;
@@ -22,7 +22,7 @@ fn main() {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
     let date:String = if args[2] == "latest" {
-        latest("download", lang).unwrap().unwrap()
+        helpers::latest("download", lang).unwrap().unwrap()
     } else {
         args[2].to_string()
     };
@@ -30,8 +30,9 @@ fn main() {
 }
 
 pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
-    let source_root = data_dir_for("download", lang, date);
-    let target_root = data_dir_for("cap", lang, date);
+    let source_root = helpers::data_dir_for("download", lang, date);
+    let target_root = helpers::data_dir_for("cap", lang, date);
+    try!(fs::remove_dir_all(target_root.clone()));
     try!(fs::create_dir_all(target_root.clone()));
     let glob = source_root.clone() + "/*.bz2";
     let mut pool = simple_parallel::Pool::new(1+num_cpus::get());

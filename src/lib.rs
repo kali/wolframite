@@ -1,5 +1,3 @@
-//#![feature(path_ext)]
-
 extern crate glob;
 extern crate bzip2;
 extern crate xml;
@@ -9,15 +7,13 @@ extern crate capnp;
 extern crate capnpc;
 
 use std::io;
-//use std::fs;
 
 pub mod helpers;
 pub mod cap;
 
 pub mod wiki_capnp {
-    include!("./schema/wiki_capnp.rs");
+    include!(concat!(env!("OUT_DIR"), "/wiki_capnp.rs"));
 }
-
 
 #[derive(Debug)]
 pub enum WikiError {
@@ -53,7 +49,7 @@ impl From<capnp::Error> for WikiError {
 }
 
 impl From<capnp::NotInSchema> for WikiError {
-    fn from(err: capnp::NotInSchema) -> WikiError {
+    fn from(_err: capnp::NotInSchema) -> WikiError {
         WikiError::Other("Not in cap schema.".to_string())
     }
 }

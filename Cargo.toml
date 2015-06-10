@@ -1,7 +1,8 @@
 [package]
-name = "wiki"
+name = "wolframite"
 version = "0.1.0"
 authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
+build = "build.rs"
 
 [dependencies]
 hyper = "*"
@@ -15,3 +16,7 @@ capnp = "*"
 capnpc = "*"
 simple_parallel = "0.2"
 num_cpus = "0.2.6"
+serde = "*"
+
+[build-dependencies]
+capnpc = "*"

@@ -1,7 +1,7 @@
 #![feature(path_ext)]
 extern crate hyper;
 extern crate regex;
-extern crate wiki;
+extern crate wolframite;
 
 use std::io;
 use std::io::prelude::*;
@@ -12,7 +12,7 @@ use regex::Regex;
 use hyper::Client;
 use hyper::header::ContentLength;
 
-use wiki::helpers::*;
+use wolframite::helpers;
 
 const PREFIX:&'static str = "http://dumps.wikimedia.org";
 
@@ -43,7 +43,7 @@ fn main() {
         date = latest_available(lang, "pages-articles.xml.bz2").unwrap();
     }
     println!("lang:{} date:{}", lang, &*date);
-    fs::create_dir_all(data_dir_for("download", lang, &*date)).unwrap();
+    fs::create_dir_all(helpers::data_dir_for("download", lang, &*date)).unwrap();
 
     let summary_url = format!("{}/{}/{}/", PREFIX, lang, &*date);
 

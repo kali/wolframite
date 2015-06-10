@@ -7,7 +7,6 @@ use std::io;
 use std::fs;
 use std::error::Error;
 use std::io::prelude::*;
-use std::iter;
 use std::path;
 
 use capnp;
@@ -62,26 +61,26 @@ impl <R:io::Read> Iterator for PagesReader<R> {
     }
 }
 
-pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
-    let options = capnp::message::ReaderOptions::new();
-    let mut stream = io::BufReader::new(r);
-    loop {
-        match serialize_packed::read_message(&mut stream, options) {
-            Ok(msg) => {
-                let page:Page::Reader = try!(msg.get_root());
-            },
-            Err(err) => {
-                if err.description().contains("Premature EOF") {
-                    return Ok( () )
-                } else {
-                    return Err(WikiError::from(err))
-                }
-            }
-        }
-    }
-}
+// pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
+//     let options = capnp::message::ReaderOptions::new();
+//     let mut stream = io::BufReader::new(r);
+//     loop {
+//         match serialize_packed::read_message(&mut stream, options) {
+//             Ok(msg) => {
+//                 try!(msg.get_root());
+//             },
+//             Err(err) => {
+//                 if err.description().contains("Premature EOF") {
+//                     return Ok( () )
+//                 } else {
+//                     return Err(WikiError::from(err))
+//                 }
+//             }
+//         }
+//     }
+// }
 
-pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Result<(),WikiError> {
+pub fn capitanize_and_slice<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
     let mut parser = EventReader::new(input);
     let mut iterator = parser.events();
     let mut part_counter = 0;
@@ -113,24 +112,25 @@ pub fn capitanize_and_slice<R:io::Read>(mut input:R, output:&path::Path) -> Resu
     Ok(())
 }
 
-pub fn capitanize<R:io::Read, W:io::Write>(mut input:R, mut output:W) -> Result<(),WikiError> {
-    let mut parser = EventReader::new(input);
-    let mut iterator = parser.events();
-    while let Some(ref e) = iterator.next() {
-        match e {
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
-                let mut message = MallocMessageBuilder::new_default();
-                {
-                    let mut page = message.init_root::<Page::Builder>();
-                    try!(consume_page(&mut iterator, &mut page));
-                }
-                try!(serialize_packed::write_message(&mut output, &mut message))
-            },
-            _ => ()
-        }
-    }
-    Ok(())
-}
+// pub fn capitanize<R:io::Read, W:io::Write>(input:R, output:W) -> Result<(),WikiError> {
+//     let mut parser = EventReader::new(input);
+//     let mut iterator = parser.events();
+//     let mut output = output;
+//     while let Some(ref e) = iterator.next() {
+//         match e {
+//             &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
+//                 let mut message = MallocMessageBuilder::new_default();
+//                 {
+//                     let mut page = message.init_root::<Page::Builder>();
+//                     try!(consume_page(&mut iterator, &mut page));
+//                 }
+//                 try!(serialize_packed::write_message(&mut output, &mut message))
+//             },
+//             _ => ()
+//         }
+//     }
+//     Ok(())
+// }
 
 fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> io::Result<()> {
     while let Some(ref e) = events.next() {
@@ -175,6 +175,15 @@ fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> i
 fn consume_revision<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> io::Result<()> {
     while let Some(ref e) = events.next() {
         match e {
+            &XmlEvent::StartElement { ref name, .. } if name.local_name == "model" => {
+                page.set_model(match &*try!(consume_string(events)) {
+                    "wikitext" => Page::Model::Wikitext,
+                    "wikibase-item" => Page::Model::Wikibaseitem,
+                    "css" => Page::Model::Css,
+                    "javascript" => Page::Model::Javascript,
+                    m => return Err(io::Error::new(io::ErrorKind::Other, "invalid model : ".to_string() + m))
+                })
+            }
             &XmlEvent::StartElement { ref name, .. } if name.local_name == "text" => {
                 page.set_text(&*try!(consume_string(events)));
             }
