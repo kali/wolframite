@@ -24,6 +24,15 @@ pub use wiki_capnp::localized_text as LocalizedText;
 pub use wiki_capnp::{ EntityType };
 //use capnp::struct_list;
 
+macro_rules! println_stderr(
+    ($($arg:tt)*) => (
+        match writeln!(&mut ::std::io::stderr(), $($arg)* ) {
+            Ok(_) => {},
+            Err(x) => panic!("Unable to write to stderr: {}", x),
+        }
+    )
+);
+
 use snappy_framed::write::SnappyFramedEncoder;
 
 pub type WikiResult<T> = Result<T,WikiError>;
@@ -184,22 +193,40 @@ fn consume_string<R:io::Read>(events:&mut Events<R>) -> io::Result<String> {
 
 // PARSE JSON DATA DUMP TO CAP
 
-pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, _output:&path::Path) -> Result<(),WikiError> {
+pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
     let input = io::BufReader::new(input);
+    let mut path = path::PathBuf::new();
+    let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);
+    let mut part_counter = 0;
+    let mut counter = 0;
     for line in input.lines() {
         let mut line = try!(line);
+        if part.is_none() || (counter % 1000 == 0 &&
+                try!(fs::metadata(&path)).len() > 250_000_000) {
+            path = path::PathBuf::from(format!("{}-part-{:05}.cap.snap",
+                output.to_str().unwrap(), part_counter));
+            part_counter+=1;
+            part =
+                Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
+        }
         if line == "[" || line == "]" {
         } else {
+            counter += 1;
             let _ = line.pop(); // eat eol coma
             let value:json::Value = try!(json::from_str(&*line));
-            // try!(json::ser::to_writer_pretty(&mut io::stdout(),&value));
             let mut message = MallocMessageBuilder::new_default();
             {
-                try!(consume_item(&value, &mut message));
+                match consume_item(&value, &mut message) {
+                    Err(e) => {
+                        println_stderr!("##### ERROR @{} #####", counter);
+                        println_stderr!("{:?}", e);
+                        try!(json::ser::to_writer_pretty(&mut io::stderr(),&value));
+                        return Err(e);
+                    },
+                    _ => ()
+                }
             }
-            try!(serialize_packed::write_message(&mut io::stdout(), &mut message));
-            try!(io::stdout().flush());
-            ::std::process::exit(1)
+            try!(serialize_packed::write_message(&mut part.as_mut().unwrap(), &mut message));
         }
     }
     println!("!?");
@@ -216,15 +243,19 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
         Some("property") => entity.set_type(EntityType::Property),
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
     };
-    let labels = try!(value.find("labels").ok_or("labels expected"));
-    {
-        let map:Map::Builder = entity.borrow().init_labels();
-        try!(build_map_to_localized_text(labels, map));
+    match value.find("labels") {
+        Some(labels) => {
+            let map:Map::Builder = entity.borrow().init_labels();
+            try!(build_map_to_localized_text(labels, map));
+        },
+        None => ()
     }
-    let descriptions = try!(value.find("descriptions").ok_or("labels expected"));
-    {
-        let map:Map::Builder = entity.borrow().init_descriptions();
-        try!(build_map_to_localized_text(descriptions, map));
+    match value.find("descriptions") {
+        Some(descriptions) => {
+            let map:Map::Builder = entity.borrow().init_descriptions();
+            try!(build_map_to_localized_text(descriptions, map));
+        },
+        None => ()
     }
     Ok( () )
 }
@@ -248,11 +279,10 @@ fn build_map_to_localized_text(labels:&json::Value, mut map:Map::Builder) -> Wik
 }
 
 fn build_localized_text(json:&json::Value, mut builder:LocalizedText::Builder) -> WikiResult<()> {
-    let language:&str = try!(json.find("language").ok_or("expected a value")
-        .and_then(|v| v.as_string().ok_or("expect value `language' to be a string")));
-    let string_value:&str = try!(json.find("value").ok_or("expected a value")
-        .and_then(|v| v.as_string().ok_or("expect value `value' to be a string")));
-    builder.set_language(language);
-    builder.set_value(string_value);
+    let language:Option<&str> = json.find("language").and_then(|v| v.as_string());
+    let value:Option<&str> = json.find("value").and_then(|v| v.as_string());
+    for l in language { builder.set_language(l) };
+    for v in value { builder.set_value(v) };
+    builder.set_removed(json.find("removed").is_some());
     Ok( () )
 }

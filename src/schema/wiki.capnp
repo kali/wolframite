@@ -95,4 +95,5 @@ struct Map(Key, Value) {
 struct LocalizedText {
     language @0: Text;
     value @1: Text;
+    removed @2: Bool;
 }
