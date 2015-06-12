@@ -2,11 +2,13 @@ extern crate glob;
 extern crate bzip2;
 extern crate xml;
 extern crate snappy_framed;
+extern crate serde;
 
 extern crate capnp;
 extern crate capnpc;
 
 use std::io;
+use std::error::Error;
 
 pub mod helpers;
 pub mod cap;
@@ -51,5 +53,17 @@ impl From<capnp::Error> for WikiError {
 impl From<capnp::NotInSchema> for WikiError {
     fn from(_err: capnp::NotInSchema) -> WikiError {
         WikiError::Other("Not in cap schema.".to_string())
+    }
+}
+
+impl From<serde::json::error::Error> for WikiError {
+    fn from(err: serde::json::error::Error) -> WikiError {
+        WikiError::Other(format!("Json decode error: {}", err.description()))
+    }
+}
+
+impl <'a> From<&'a str> for WikiError {
+    fn from(err: &str) -> WikiError {
+        WikiError::Other(err.to_string())
     }
 }

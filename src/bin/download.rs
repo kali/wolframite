@@ -47,7 +47,7 @@ fn main() {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
     let date = if args.len() >= 3 && args[2].to_string() != "latest" { Some(args[2].to_string()) } else { None };
-    if lang == "wikidatawiki" {
+    if lang == "wikidata" {
         download_wikidata(date)
     } else {
         download_wiki(lang, date)
@@ -61,7 +61,7 @@ fn download_wikidata(date:Option<String>) {
     fs::create_dir_all(&*dir).unwrap();
     let filename = format!("{}/wikidata-{}.json.gz", &*dir, &*date);
     download_if_smaller(url, filename);
-    fs::File::create(format!("{}/{}/ok", &*dir, &*date)).unwrap();
+    let _ = fs::File::create(format!("{}/{}/ok", &*dir, &*date));
 }
 
 fn download_wiki(lang:&String, optdate:Option<String>) {
@@ -96,7 +96,7 @@ fn download_wiki(lang:&String, optdate:Option<String>) {
         let local_filename = "data/download".to_string() + &*filename;
         download_if_smaller(url, local_filename);
     }
-    fs::File::create(format!("{}/ok", &*dir)).unwrap();
+    let _ = fs::File::create(format!("{}/ok", &*dir));
 }
 
 fn download_if_smaller(url:String, filename:String) {

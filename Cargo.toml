@@ -17,6 +17,7 @@ capnpc = "*"
 simple_parallel = "0.2"
 num_cpus = "0.2.6"
 serde = "*"
+flate2 = "0.2.7"
 
 [build-dependencies]
 capnpc = "*"

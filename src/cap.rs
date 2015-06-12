@@ -9,16 +9,26 @@ use std::error::Error;
 use std::io::prelude::*;
 use std::path;
 
+use serde::json;
+
 use capnp;
 use capnp::serialize_packed;
 use capnp::{MessageBuilder, MallocMessageBuilder};
 use capnp::message::MessageReader;
 
 pub use wiki_capnp::page as Page;
+pub use wiki_capnp::entity as Entity;
+pub use wiki_capnp::map as Map;
+pub use wiki_capnp::map::entry as MapEntry;
+pub use wiki_capnp::localized_text as LocalizedText;
+pub use wiki_capnp::{ EntityType };
+//use capnp::struct_list;
 
 use snappy_framed::write::SnappyFramedEncoder;
 
 pub type WikiResult<T> = Result<T,WikiError>;
+
+// READ PAGE FROM CAP
 
 pub struct MessageAndPage {
     message:capnp::serialize::OwnedSpaceMessageReader
@@ -61,24 +71,7 @@ impl <R:io::Read> Iterator for PagesReader<R> {
     }
 }
 
-// pub fn read_pages<R:io::Read>(mut r:R) -> Result<(), WikiError> {
-//     let options = capnp::message::ReaderOptions::new();
-//     let mut stream = io::BufReader::new(r);
-//     loop {
-//         match serialize_packed::read_message(&mut stream, options) {
-//             Ok(msg) => {
-//                 try!(msg.get_root());
-//             },
-//             Err(err) => {
-//                 if err.description().contains("Premature EOF") {
-//                     return Ok( () )
-//                 } else {
-//                     return Err(WikiError::from(err))
-//                 }
-//             }
-//         }
-//     }
-// }
+// PARSE WIKI XML -> CAP SNAP
 
 pub fn capitanize_and_slice<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
     let mut parser = EventReader::new(input);
@@ -111,26 +104,6 @@ pub fn capitanize_and_slice<R:io::Read>(input:R, output:&path::Path) -> Result<(
     }
     Ok(())
 }
-
-// pub fn capitanize<R:io::Read, W:io::Write>(input:R, output:W) -> Result<(),WikiError> {
-//     let mut parser = EventReader::new(input);
-//     let mut iterator = parser.events();
-//     let mut output = output;
-//     while let Some(ref e) = iterator.next() {
-//         match e {
-//             &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
-//                 let mut message = MallocMessageBuilder::new_default();
-//                 {
-//                     let mut page = message.init_root::<Page::Builder>();
-//                     try!(consume_page(&mut iterator, &mut page));
-//                 }
-//                 try!(serialize_packed::write_message(&mut output, &mut message))
-//             },
-//             _ => ()
-//         }
-//     }
-//     Ok(())
-// }
 
 fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> io::Result<()> {
     while let Some(ref e) = events.next() {
@@ -209,4 +182,77 @@ fn consume_string<R:io::Read>(events:&mut Events<R>) -> io::Result<String> {
     Err(io::Error::new(io::ErrorKind::Other, "EOF?"))
 }
 
+// PARSE JSON DATA DUMP TO CAP
 
+pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, _output:&path::Path) -> Result<(),WikiError> {
+    let input = io::BufReader::new(input);
+    for line in input.lines() {
+        let mut line = try!(line);
+        if line == "[" || line == "]" {
+        } else {
+            let _ = line.pop(); // eat eol coma
+            let value:json::Value = try!(json::from_str(&*line));
+            // try!(json::ser::to_writer_pretty(&mut io::stdout(),&value));
+            let mut message = MallocMessageBuilder::new_default();
+            {
+                try!(consume_item(&value, &mut message));
+            }
+            try!(serialize_packed::write_message(&mut io::stdout(), &mut message));
+            try!(io::stdout().flush());
+            ::std::process::exit(1)
+        }
+    }
+    println!("!?");
+    Ok( () )
+}
+
+fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result<(),WikiError> {
+    let mut entity = message.init_root::<Entity::Builder>();
+    let id = try!(value.find("id").ok_or("id expected"));
+    entity.set_id(try!(id.as_string().ok_or("id is expected to be a string")));
+    let typ = try!(value.find("type").ok_or("type field expected"));
+    match typ.as_string() {
+        Some("item") => entity.set_type(EntityType::Item),
+        Some("property") => entity.set_type(EntityType::Property),
+        _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
+    };
+    let labels = try!(value.find("labels").ok_or("labels expected"));
+    {
+        let map:Map::Builder = entity.borrow().init_labels();
+        try!(build_map_to_localized_text(labels, map));
+    }
+    let descriptions = try!(value.find("descriptions").ok_or("labels expected"));
+    {
+        let map:Map::Builder = entity.borrow().init_descriptions();
+        try!(build_map_to_localized_text(descriptions, map));
+    }
+    Ok( () )
+}
+
+fn build_map_to_localized_text(labels:&json::Value, mut map:Map::Builder) -> WikiResult<()> {
+    let labels = try!(labels.as_object().ok_or("map of localized text is expected as json object"));
+    map.borrow().init_entries(labels.len() as u32);
+    let mut entries = try!(map.borrow().get_entries());
+    {
+        let mut i = 0u32;
+        for (l, v) in labels {
+            let mut entry = entries.borrow().get(i);
+            entry.borrow().init_key();
+            try!(entry.borrow().get_key().set_as(&**l));
+            try!(build_localized_text(v,
+                entry.get_value().init_as::<LocalizedText::Builder>()));
+            i+=1;
+        }
+    }
+    Ok( () )
+}
+
+fn build_localized_text(json:&json::Value, mut builder:LocalizedText::Builder) -> WikiResult<()> {
+    let language:&str = try!(json.find("language").ok_or("expected a value")
+        .and_then(|v| v.as_string().ok_or("expect value `language' to be a string")));
+    let string_value:&str = try!(json.find("value").ok_or("expected a value")
+        .and_then(|v| v.as_string().ok_or("expect value `value' to be a string")));
+    builder.set_language(language);
+    builder.set_value(string_value);
+    Ok( () )
+}

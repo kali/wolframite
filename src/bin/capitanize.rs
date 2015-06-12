@@ -3,6 +3,7 @@
 extern crate wolframite;
 extern crate glob;
 extern crate bzip2;
+extern crate flate2;
 extern crate snappy_framed;
 extern crate simple_parallel;
 extern crate num_cpus;
@@ -11,17 +12,17 @@ use wolframite::WikiError;
 use wolframite::helpers;
 use wolframite::cap;
 
+use std::io::prelude::*;
 use std::fs;
-use std::fs::PathExt;
+
+use std::process;
 
 use std::path;
-
-use bzip2::reader::BzDecompressor;
 
 fn main() {
     let args:Vec<String> = std::env::args().collect();
     let ref lang = args[1];
-    let date:String = if args[2] == "latest" {
+    let date:String = if args.len() < 3 || args[2] == "latest" {
         helpers::latest("download", lang).unwrap().unwrap()
     } else {
         args[2].to_string()
@@ -32,10 +33,10 @@ fn main() {
 pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     let source_root = helpers::data_dir_for("download", lang, date);
     let target_root = helpers::data_dir_for("cap", lang, date);
-    try!(fs::remove_dir_all(target_root.clone()));
+    let _ = fs::remove_dir_all(target_root.clone());
     try!(fs::create_dir_all(target_root.clone()));
-    let glob = source_root.clone() + "/*.bz2";
-    let mut pool = simple_parallel::Pool::new(1+num_cpus::get());
+    let extension = if lang == "wikidata" { "json.gz" } else { "bz2" };
+    let glob = source_root.clone() + "/*." + extension;
     let jobs:Result<Vec<(path::PathBuf,path::PathBuf)>,WikiError> =
         try!(::glob::glob(&glob)).map( |entry| {
             let entry:String = try!(entry).to_str().unwrap().to_string();
@@ -46,15 +47,23 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     }).collect();
     let mut jobs = try!(jobs);
     jobs.sort_by( |a,b| b.0.metadata().unwrap().len().cmp(&a.0.metadata().unwrap().len()));
-    let task = |job:(path::PathBuf,path::PathBuf)| { capitanize_file(&*job.0, &*job.1) };
+    let mut pool = simple_parallel::Pool::new(1+num_cpus::get());
+    let task = |job:(path::PathBuf,path::PathBuf)| {
+        if lang != "wikidata" {
+            let input = bzip2::reader::BzDecompressor::new(try!(fs::File::open(&*job.0)));
+            cap::capitanize_and_slice(input, &*job.1)
+        } else {
+            let cmd = try!(process::Command::new("gzcat")
+                    .arg("-d").arg(&*job.0)
+                    .stdout(process::Stdio::piped())
+                    .spawn());
+            try!(cap::capitanize_and_slice_wikidata(cmd.stdout.unwrap(), &*job.1));
+            Ok(())
+        }
+    };
     let result:Result<Vec<()>,WikiError> = unsafe { pool.map(jobs, &task).collect() };
     try!(result);
-    fs::File::create(format!("data/cap/{}/{}/ok", lang, &*date)).unwrap();
+    let _ = fs::File::create(format!("data/cap/{}/{}/ok", lang, &*date));
     Ok( () )
 }
 
-pub fn capitanize_file(src:&path::Path, dst:&path::Path) -> Result<(), WikiError> {
-    let input = BzDecompressor::new(try!(fs::File::open(src)));
-    try!(cap::capitanize_and_slice(input, dst));
-    Ok( () )
-}
