@@ -27,6 +27,7 @@ struct Entity {
     descriptions @3: Map(Text,LocalizedText);
     aliases @4: Map(Text,List(LocalizedText));
     claims @5: Map(Text,List(Claim));
+    sitelinks @6: Map(Text,List(SiteLink));
 }
 
 struct Claim {
@@ -96,4 +97,10 @@ struct LocalizedText {
     language @0: Text;
     value @1: Text;
     removed @2: Bool;
+}
+
+struct SiteLink {
+    site @0: Text;
+    title @1: Text;
+    badges @2: List(Text);
 }

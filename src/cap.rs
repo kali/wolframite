@@ -21,6 +21,7 @@ pub use wiki_capnp::entity as Entity;
 pub use wiki_capnp::map as Map;
 pub use wiki_capnp::map::entry as MapEntry;
 pub use wiki_capnp::localized_text as LocalizedText;
+pub use wiki_capnp::site_link as SiteLink;
 pub use wiki_capnp::{ EntityType };
 //use capnp::struct_list;
 
@@ -212,8 +213,15 @@ pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, output:&path::Path) ->
         if line == "[" || line == "]" {
         } else {
             counter += 1;
-            let _ = line.pop(); // eat eol coma
-            let value:json::Value = try!(json::from_str(&*line));
+            if line.pop() == Some('}') {
+                line.push('}')
+            }
+            let value:json::Value = try!(json::from_str(&*line).or_else(|e| {
+                println_stderr!("##### JSON ERROR @{} #####", counter);
+                println_stderr!("{:?}", e);
+                try!(io::copy(&mut io::Cursor::new(line.as_bytes()), &mut io::stderr()));
+                Err(e)
+            }));
             let mut message = MallocMessageBuilder::new_default();
             {
                 match consume_item(&value, &mut message) {
@@ -229,7 +237,6 @@ pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, output:&path::Path) ->
             try!(serialize_packed::write_message(&mut part.as_mut().unwrap(), &mut message));
         }
     }
-    println!("!?");
     Ok( () )
 }
 
@@ -243,46 +250,50 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
         Some("property") => entity.set_type(EntityType::Property),
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
     };
-    match value.find("labels") {
-        Some(labels) => {
-            let map:Map::Builder = entity.borrow().init_labels();
-            try!(build_map_to_localized_text(labels, map));
-        },
-        None => ()
-    }
-    match value.find("descriptions") {
-        Some(descriptions) => {
-            let map:Map::Builder = entity.borrow().init_descriptions();
-            try!(build_map_to_localized_text(descriptions, map));
-        },
-        None => ()
-    }
+    value.find("labels").map(|labels| {
+        build_map_of_struct(labels, entity.borrow().init_labels(),
+            |v,b| build_localized_text(v, b.init_as())
+        )
+    });
+    value.find("descriptions").map(|vs| {
+        build_map_of_struct(vs, entity.borrow().init_descriptions(),
+            |v,b| build_localized_text(v, b.init_as())
+        )
+    });
+    value.find("sitelinks").map(|vs| {
+        build_map_of_struct(vs, entity.borrow().init_descriptions(),
+            |v,b| build_sitelink(v, b.init_as())
+        )
+    });
     Ok( () )
 }
 
-fn build_map_to_localized_text(labels:&json::Value, mut map:Map::Builder) -> WikiResult<()> {
-    let labels = try!(labels.as_object().ok_or("map of localized text is expected as json object"));
-    map.borrow().init_entries(labels.len() as u32);
+fn build_map_of_struct<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F) 
+                -> WikiResult<()>
+            where F: Fn(&json::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
+    let map_of_maps = try!(map_of_maps.as_object().ok_or("map of localized text is expected as json object"));
+    map.borrow().init_entries(map_of_maps.len() as u32);
     let mut entries = try!(map.borrow().get_entries());
     {
-        let mut i = 0u32;
-        for (l, v) in labels {
-            let mut entry = entries.borrow().get(i);
+        for (i, (l, v)) in map_of_maps.iter().enumerate() {
+            let mut entry = entries.borrow().get(i as u32);
             entry.borrow().init_key();
             try!(entry.borrow().get_key().set_as(&**l));
-            try!(build_localized_text(v,
-                entry.get_value().init_as::<LocalizedText::Builder>()));
-            i+=1;
+            try!(inner(v, entry.get_value()));
         }
     }
     Ok( () )
 }
 
 fn build_localized_text(json:&json::Value, mut builder:LocalizedText::Builder) -> WikiResult<()> {
-    let language:Option<&str> = json.find("language").and_then(|v| v.as_string());
-    let value:Option<&str> = json.find("value").and_then(|v| v.as_string());
-    for l in language { builder.set_language(l) };
-    for v in value { builder.set_value(v) };
+    json.find("language").and_then(|v| v.as_string()).map(|v| builder.set_language(v));
+    json.find("value").and_then(|v| v.as_string()).map(|v| builder.set_value(v));
     builder.set_removed(json.find("removed").is_some());
+    Ok( () )
+}
+
+fn build_sitelink(json:&json::Value, mut builder:SiteLink::Builder) -> WikiResult<()> {
+    json.find("site").and_then(|v| v.as_string()).map(|v| builder.set_site(v));
+    json.find("title").and_then(|v| v.as_string()).map(|v| builder.set_title(v));
     Ok( () )
 }
