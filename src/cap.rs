@@ -23,7 +23,7 @@ pub use wiki_capnp::map::entry as MapEntry;
 pub use wiki_capnp::localized_text as LocalizedText;
 pub use wiki_capnp::site_link as SiteLink;
 pub use wiki_capnp::{ EntityType };
-//use capnp::struct_list;
+use capnp::struct_list as StructList;
 
 macro_rules! println_stderr(
     ($($arg:tt)*) => (
@@ -251,24 +251,35 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
     };
     value.find("labels").map(|labels| {
-        build_map_of_struct(labels, entity.borrow().init_labels(),
+        build_map(labels, entity.borrow().init_labels(),
             |v,b| build_localized_text(v, b.init_as())
         )
     });
     value.find("descriptions").map(|vs| {
-        build_map_of_struct(vs, entity.borrow().init_descriptions(),
+        build_map(vs, entity.borrow().init_descriptions(),
             |v,b| build_localized_text(v, b.init_as())
         )
     });
     value.find("sitelinks").map(|vs| {
-        build_map_of_struct(vs, entity.borrow().init_descriptions(),
+        build_map(vs, entity.borrow().init_sitelinks(),
             |v,b| build_sitelink(v, b.init_as())
         )
+    });
+    value.find("aliases").map(|vs| {
+        build_map(vs, entity.borrow().init_aliases(), |v,b| {
+            let array = try!(v.as_array().ok_or("expect an array"));
+            let mut list_builder:StructList::Builder<LocalizedText::Builder> =
+                b.init_as_sized(array.len() as u32);
+            for (i,item) in array.iter().enumerate() {
+                try!(build_localized_text(item, list_builder.borrow().get(i as u32)));
+            };
+            Ok( () )
+        })
     });
     Ok( () )
 }
 
-fn build_map_of_struct<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F) 
+fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F) 
                 -> WikiResult<()>
             where F: Fn(&json::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
     let map_of_maps = try!(map_of_maps.as_object().ok_or("map of localized text is expected as json object"));
