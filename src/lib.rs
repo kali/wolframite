@@ -12,6 +12,7 @@ use std::error::Error;
 
 pub mod helpers;
 pub mod cap;
+pub mod wikidata;
 
 pub mod wiki_capnp {
     include!(concat!(env!("OUT_DIR"), "/wiki_capnp.rs"));

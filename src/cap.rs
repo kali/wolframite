@@ -16,6 +16,7 @@ use capnp::serialize_packed;
 use capnp::{MessageBuilder, MallocMessageBuilder};
 use capnp::message::MessageReader;
 
+use capnp::struct_list as StructList;
 pub use wiki_capnp::page as Page;
 pub use wiki_capnp::entity as Entity;
 pub use wiki_capnp::map as Map;
@@ -30,7 +31,6 @@ pub use wiki_capnp::time as Time;
 pub use wiki_capnp::quantity as Quantity;
 pub use wiki_capnp::globe_coordinate as GlobeCoordinate;
 pub use wiki_capnp::{ EntityType };
-use capnp::struct_list as StructList;
 
 macro_rules! println_stderr(
     ($($arg:tt)*) => (
