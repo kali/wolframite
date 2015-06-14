@@ -20,8 +20,15 @@ pub use wiki_capnp::page as Page;
 pub use wiki_capnp::entity as Entity;
 pub use wiki_capnp::map as Map;
 pub use wiki_capnp::map::entry as MapEntry;
-pub use wiki_capnp::localized_text as LocalizedText;
+pub use wiki_capnp::monolingual_text as MongolingualText;
 pub use wiki_capnp::site_link as SiteLink;
+pub use wiki_capnp::claim as Claim;
+pub use wiki_capnp::snak as Snak;
+pub use wiki_capnp::data_value as DataValue;
+pub use wiki_capnp::wikibase_entity_ref as WikibaseEntityRef;
+pub use wiki_capnp::time as Time;
+pub use wiki_capnp::quantity as Quantity;
+pub use wiki_capnp::globe_coordinate as GlobeCoordinate;
 pub use wiki_capnp::{ EntityType };
 use capnp::struct_list as StructList;
 
@@ -130,8 +137,7 @@ fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> i
             &XmlEvent::StartElement { ref name, .. } if name.local_name == "id" => {
                 page.set_id(try!(consume_string(events)
                     .and_then(|s|
-                        s.parse().or_else( |e| {
-                            println!("Error: {} {}", s, e);
+                        s.parse().or_else( |_| {
                             Err(io::Error::new(io::ErrorKind::Other, "can not parse int (id)"))
                         })
                     )
@@ -140,8 +146,7 @@ fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> i
             &XmlEvent::StartElement { ref name, .. } if name.local_name == "ns" => {
                 page.set_ns(try!(consume_string(events)
                     .and_then(|s|
-                        s.parse().or_else( |e| {
-                            println!("Error: {} {}", s, e);
+                        s.parse().or_else( |_| {
                             Err(io::Error::new(io::ErrorKind::Other, "can not parse int (ns)"))
                         })
                     )
@@ -224,16 +229,19 @@ pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, output:&path::Path) ->
             }));
             let mut message = MallocMessageBuilder::new_default();
             {
-                match consume_item(&value, &mut message) {
-                    Err(e) => {
-                        println_stderr!("##### ERROR @{} #####", counter);
-                        println_stderr!("{:?}", e);
-                        try!(json::ser::to_writer_pretty(&mut io::stderr(),&value));
-                        return Err(e);
-                    },
-                    _ => ()
-                }
+                let job = consume_item(&value, &mut message);
+                try!(job.or_else(|e| {
+                    println!("error handler");
+                    println_stderr!("##### ERROR @{} #####", counter);
+                    println_stderr!("{:?}", e);
+                    try!(json::ser::to_writer_pretty(&mut io::stderr(),&value));
+                    return Err(e);
+                }));
             }
+/*
+            try!(json::ser::to_writer_pretty(&mut io::stderr(),&value));
+            return Err(WikiError::Other("blah".to_string()));
+*/
             try!(serialize_packed::write_message(&mut part.as_mut().unwrap(), &mut message));
         }
     }
@@ -250,39 +258,50 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
         Some("property") => entity.set_type(EntityType::Property),
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
     };
-    value.find("labels").map(|labels| {
+    try!(value.find("labels").map(|labels| {
         build_map(labels, entity.borrow().init_labels(),
-            |v,b| build_localized_text(v, b.init_as())
+            |v,b| build_monolingual_text(v, b.init_as())
         )
-    });
-    value.find("descriptions").map(|vs| {
+    }).unwrap_or(Ok(())));
+    try!(value.find("descriptions").map(|vs| {
         build_map(vs, entity.borrow().init_descriptions(),
-            |v,b| build_localized_text(v, b.init_as())
+            |v,b| build_monolingual_text(v, b.init_as())
         )
-    });
-    value.find("sitelinks").map(|vs| {
+    }).unwrap_or(Ok(())));
+    try!(value.find("sitelinks").map(|vs| {
         build_map(vs, entity.borrow().init_sitelinks(),
             |v,b| build_sitelink(v, b.init_as())
         )
-    });
-    value.find("aliases").map(|vs| {
+    }).unwrap_or(Ok(())));
+    try!(value.find("aliases").map(|vs| {
         build_map(vs, entity.borrow().init_aliases(), |v,b| {
             let array = try!(v.as_array().ok_or("expect an array"));
-            let mut list_builder:StructList::Builder<LocalizedText::Builder> =
+            let mut list_builder:StructList::Builder<MongolingualText::Builder> =
                 b.init_as_sized(array.len() as u32);
             for (i,item) in array.iter().enumerate() {
-                try!(build_localized_text(item, list_builder.borrow().get(i as u32)));
+                try!(build_monolingual_text(item, list_builder.borrow().get(i as u32)));
             };
             Ok( () )
         })
-    });
+    }).unwrap_or(Ok(())));
+    try!(value.find("claims").map(|vs| {
+        build_map(vs, entity.borrow().init_claims(), |v,b| {
+            let array = try!(v.as_array().ok_or("expect an array"));
+            let mut list_builder:StructList::Builder<Claim::Builder> =
+                b.init_as_sized(array.len() as u32);
+            for (i,item) in array.iter().enumerate() {
+                try!(build_claim(item, list_builder.borrow().get(i as u32)));
+            };
+            Ok( () )
+        })
+    }).unwrap_or(Ok(())));
     Ok( () )
 }
 
-fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F) 
+fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F)
                 -> WikiResult<()>
             where F: Fn(&json::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
-    let map_of_maps = try!(map_of_maps.as_object().ok_or("map of localized text is expected as json object"));
+    let map_of_maps = try!(map_of_maps.as_object().ok_or("map of monolingual text is expected as json object"));
     map.borrow().init_entries(map_of_maps.len() as u32);
     let mut entries = try!(map.borrow().get_entries());
     {
@@ -296,10 +315,14 @@ fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F)
     Ok( () )
 }
 
-fn build_localized_text(json:&json::Value, mut builder:LocalizedText::Builder) -> WikiResult<()> {
+
+fn build_monolingual_text(json:&json::Value, mut builder:MongolingualText::Builder) -> WikiResult<()> {
     json.find("language").and_then(|v| v.as_string()).map(|v| builder.set_language(v));
-    json.find("value").and_then(|v| v.as_string()).map(|v| builder.set_value(v));
-    builder.set_removed(json.find("removed").is_some());
+    if json.find("removed").is_some() {
+        builder.set_removed( () );
+    } else {
+        json.find("value").and_then(|v| v.as_string()).map(|v| builder.set_value(v));
+    }
     Ok( () )
 }
 
@@ -307,4 +330,105 @@ fn build_sitelink(json:&json::Value, mut builder:SiteLink::Builder) -> WikiResul
     json.find("site").and_then(|v| v.as_string()).map(|v| builder.set_site(v));
     json.find("title").and_then(|v| v.as_string()).map(|v| builder.set_title(v));
     Ok( () )
+}
+
+fn build_claim(json:&json::Value, mut builder:Claim::Builder) -> WikiResult<()> {
+    json.find("id").and_then(|v| v.as_string()).map(|v| builder.set_id(v));
+    match json.find("type").and_then(|v| v.as_string()) {
+        Some("statement") => builder.set_type(Claim::Type::Statement),
+        Some("claim") => builder.set_type(Claim::Type::Claim),
+        Some(e) =>
+            return Err(WikiError::from(format!("unexpected value for claim type {}", e))),
+        _ => ()
+    }
+    match json.find("rank").and_then(|v| v.as_string()) {
+        Some("preferred") => builder.set_rank(Claim::Rank::Preferred),
+        Some("normal") => builder.set_rank(Claim::Rank::Normal),
+        Some("deprecated") => builder.set_rank(Claim::Rank::Deprecated),
+        Some(e) =>
+            return Err(WikiError::from(format!("unexpected value for claim rank {}", e))),
+        _ => ()
+    }
+    let snak = try!(json.find("mainsnak").ok_or("I do expect a mainsnak."));
+    try!(build_snak(snak, builder.init_mainsnak()));
+    Ok( () )
+}
+
+fn build_snak(json:&json::Value, mut builder:Snak::Builder) -> WikiResult<()> {
+    json.find("property").and_then(|v| v.as_string()).map(|v| builder.set_property(v));
+    json.find("datatype").and_then(|v| v.as_string()).map(|v| builder.set_datatype(v));
+    let snaktype = try!(json.find("snaktype").and_then(|v|v.as_string()).ok_or("expect a snaktype"));
+    match snaktype {
+        "value" => {
+            let value = try!(json.find("datavalue").ok_or("no datatype in snak"));
+            try!(build_data_value(value, builder.init_value()));
+        },
+        "novalue" => builder.set_novalue(()),
+        "somevalue" => builder.set_somevalue(()),
+        e => return Err(WikiError::from(format!("unexpected snaktype {}", e))),
+    }
+    Ok( () )
+}
+
+fn build_data_value(json:&json::Value, mut builder:DataValue::Builder) -> WikiResult<()> {
+    let t = try!(json.find("type").and_then(|v| v.as_string()).ok_or("expect a type"));
+    let v = try!(json.find("value").ok_or("expect a value"));
+    match t {
+        "string" => builder.set_string(
+            try!(v.as_string().ok_or("expected a string"))),
+        "wikibase-entityid" =>
+            try!(build_wikibase_entity_ref(v, builder.init_wikibaseentityid())),
+        "time" => try!(build_time(v, builder.init_time())),
+        "quantity" => try!(build_quantity(v, builder.init_quantity())),
+        "globecoordinate" => try!(build_globecoordinate(v, builder.init_globecoordinate())),
+        "monolingualtext" => try!(build_monolingual_text(v, builder.init_monolingualtext())),
+        e => {
+            return Err(WikiError::Other(format!("unexpected datavalue type:{} {:?}", e, json)))
+        }
+    }
+    Ok( () )
+}
+
+fn build_wikibase_entity_ref(json:&json::Value, mut builder:WikibaseEntityRef::Builder) -> WikiResult<()> {
+    let typ = try!(json.find("entity-type").and_then(|v| v.as_string()).ok_or("expect an entity-type"));
+    builder.set_type(try!(build_entity_type(typ)));
+    builder.set_id(try!(
+        json.find("numeric-id").and_then(|v| v.as_u64()).ok_or("expect a numeric id")) as u32);
+    Ok( () )
+}
+
+fn build_time(json:&json::Value, mut builder:Time::Builder) -> WikiResult<()> {
+    json.find("time").and_then(|v| v.as_string()).map(|v| builder.set_time(v));
+    json.find("calendarmodel").and_then(|v| v.as_string()).map(|v| builder.set_calendarmodel(v));
+    json.find("precision").and_then(|v| v.as_u64()).map(|v| builder.set_precision(v as u8));
+    json.find("timezone").and_then(|v| v.as_u64()).map(|v| builder.set_timezone(v as i16));
+    json.find("before").and_then(|v| v.as_u64()).map(|v| builder.set_before(v as u64));
+    json.find("after").and_then(|v| v.as_u64()).map(|v| builder.set_after(v as u64));
+    Ok( () )
+}
+
+fn build_quantity(json:&json::Value, mut builder:Quantity::Builder) -> WikiResult<()> {
+    json.find("amount").and_then(|v| v.as_f64()).map(|v| builder.set_amount(v));
+    json.find("lowerBound").and_then(|v| v.as_f64()).map(|v| builder.set_lower_bound(v));
+    json.find("upperBound").and_then(|v| v.as_f64()).map(|v| builder.set_upper_bound(v));
+    json.find("unit").and_then(|v| v.as_string()).map(|v| builder.set_unit(v));
+    Ok( () )
+}
+
+fn build_globecoordinate(json:&json::Value, mut builder:GlobeCoordinate::Builder)
+        -> WikiResult<()> {
+    json.find("latitude").and_then(|v| v.as_f64()).map(|v| builder.set_latitude(v));
+    json.find("longitude").and_then(|v| v.as_f64()).map(|v| builder.set_longitude(v));
+    json.find("altitude").and_then(|v| v.as_f64()).map(|v| builder.set_altitude(v));
+    json.find("precision").and_then(|v| v.as_f64()).map(|v| builder.set_precision(v));
+    json.find("globe").and_then(|v| v.as_string()).map(|v| builder.set_globe(v));
+    Ok( () )
+}
+
+fn build_entity_type(typ:&str) -> WikiResult<EntityType> {
+    match typ {
+        "item" => Ok(EntityType::Item),
+        "property" => Ok(EntityType::Property),
+        _ => Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
+    }
 }

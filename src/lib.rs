@@ -67,3 +67,9 @@ impl <'a> From<&'a str> for WikiError {
         WikiError::Other(err.to_string())
     }
 }
+
+impl From<String> for WikiError {
+    fn from(err: String) -> WikiError {
+        WikiError::Other(err)
+    }
+}

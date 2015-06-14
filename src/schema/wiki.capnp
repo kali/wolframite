@@ -23,9 +23,9 @@ enum EntityType { item @0; property @1; }
 struct Entity {
     id @0: Text;
     type @1: EntityType;
-    labels @2: Map(Text,LocalizedText);
-    descriptions @3: Map(Text,LocalizedText);
-    aliases @4: Map(Text,List(LocalizedText));
+    labels @2: Map(Text,MonolingualText);
+    descriptions @3: Map(Text,MonolingualText);
+    aliases @4: Map(Text,List(MonolingualText));
     claims @5: Map(Text,List(Claim));
     sitelinks @6: Map(Text,List(SiteLink));
 }
@@ -35,7 +35,7 @@ struct Claim {
     enum Type { statement @0; claim @1; }
     type @1: Type;
     mainsnak @2: Snak;
-    enum Rank { prefered @0; normal @1; deprecated @2; }
+    enum Rank { preferred @0; normal @1; deprecated @2; }
     rank @3: Rank;
     qualifiers @4: Map(Text, Snak);
     references @5: List(Reference);
@@ -56,6 +56,9 @@ struct DataValue {
         string @0: Text;
         wikibaseentityid @1 : WikibaseEntityRef;
         globecoordinate @2: GlobeCoordinate;
+        time @3: Time;
+        quantity @4: Quantity;
+        monolingualtext @5: MonolingualText;
     }
 }
 
@@ -83,6 +86,15 @@ struct Time {
     timezone @1: Int16;
     precision @2: UInt8;
     calendarmodel @3: Text;
+    before @4: UInt64;
+    after @5: UInt64;
+}
+
+struct Quantity {
+    amount @0: Float64;
+    lowerBound @1: Float64;
+    upperBound @2: Float64;
+    unit @3: Text;
 }
 
 struct Map(Key, Value) {
@@ -93,10 +105,12 @@ struct Map(Key, Value) {
   }
 }
 
-struct LocalizedText {
+struct MonolingualText {
     language @0: Text;
-    value @1: Text;
-    removed @2: Bool;
+    union {
+        value @1: Text;
+        removed @2: Void;
+    }
 }
 
 struct SiteLink {
