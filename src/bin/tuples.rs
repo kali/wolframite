@@ -5,32 +5,13 @@ extern crate snappy_framed;
 
 use wolframite::WikiError;
 use wolframite::helpers;
+use wolframite::wikidata::EntityHelpers;
 use std::fs;
 
 pub use wolframite::wiki_capnp::monolingual_text as MongolingualText;
 
 pub type WikiResult<T> = Result<T,WikiError>;
 
-trait MapWrapper {
-    fn get(&self, key:&str) -> WikiResult<Option<&str>>;
-}
-
-impl <'a> MapWrapper for wolframite::wiki_capnp::map::Reader<'a> {
-    fn get(&self, key:&str) -> WikiResult<Option<&str>> {
-        let entries = try!(self.get_entries());
-        for entry in entries.iter() {
-            let this_key:&str = try!(entry.get_key().get_as());
-            if this_key == key {
-                let value:MongolingualText::Reader = try!(entry.get_value().get_as());
-                match try!(value.which()) {
-                    MongolingualText::Value(t) => return Ok(Some(try!(t))),
-                    MongolingualText::Removed(_) => return Ok(None)
-                }
-            }
-        }
-        Ok(None)
-    }
-}
 
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode::Ignore;
@@ -49,8 +30,7 @@ fn run() -> Result<(), WikiError> {
         let reader = wolframite::wikidata::EntityReader::new(input);
         for message in reader {
             let message = try!(message);
-            let entity = try!(message.as_entity_reader());
-            println!("{:?}", try!(entity.get_labels()).get("en"));
+            println!("{:?} {:?}", try!(message.get_label("en")), try!(message.get_description("en")));
         }
     }
     Ok( () )
