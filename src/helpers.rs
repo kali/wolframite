@@ -98,7 +98,7 @@ pub struct ReadChain<T:Read> {
 }
 
 impl<T:Read> ReadChain<T> {
-    fn new(readers:Vec<T>) -> ReadChain<T> {
+    pub fn new(readers:Vec<T>) -> ReadChain<T> {
         return ReadChain{ position:0, inner:readers}
     }
 }

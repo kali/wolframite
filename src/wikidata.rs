@@ -1,6 +1,9 @@
 use std::io;
+use std::fs;
 use std::io::prelude::*;
 use std::error::Error;
+
+use helpers;
 
 use capnp;
 use capnp::message::MessageReader;
@@ -20,6 +23,9 @@ pub use wiki_capnp::time as Time;
 pub use wiki_capnp::quantity as Quantity;
 pub use wiki_capnp::globe_coordinate as GlobeCoordinate;
 pub use wiki_capnp::{ EntityType };
+
+use snappy_framed::read::SnappyFramedDecoder;
+use snappy_framed::read::CrcMode::Ignore;
 
 pub type WikiResult<T> = Result<T,WikiError>;
 
@@ -52,6 +58,10 @@ pub struct MessageAndEntity {
 pub trait EntityHelpers {
     fn as_entity_reader(&self) -> WikiResult<Entity::Reader>;
 
+    fn get_id(&self) -> WikiResult<&str> {
+        Ok(try!(try!(self.as_entity_reader()).get_id()))
+    }
+
     fn get_labels(&self) -> WikiResult<Map::Reader> {
         Ok(try!(try!(self.as_entity_reader()).get_labels()))
     }
@@ -69,6 +79,12 @@ pub trait EntityHelpers {
         let descriptions = try!(self.get_descriptions());
         Ok(try!(descriptions.get(lang)).map(|s| s.to_string()))
     }
+/*
+    fn get_claims(&self) -> WikiResult<Vec<Claim::Reader>> {
+        let claims = try!(try!(self.as_entity_reader()).get_claims());
+        Ok(claims)
+    }
+*/
 }
 
 impl EntityHelpers for MessageAndEntity {
@@ -83,12 +99,25 @@ pub struct EntityReader<R:io::Read> {
 }
 
 impl <R:io::Read> EntityReader<R> {
-    pub fn new(r:R) -> EntityReader<R> {
+    pub fn for_reader(r:R) -> EntityReader<R> {
         EntityReader {
             options:capnp::message::ReaderOptions::new(),
             stream:io::BufReader::new(r),
         }
     }
+}
+
+pub fn for_date(date:&str) ->
+        WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
+    let cap_root = helpers::data_dir_for("cap", "wikidata", date);
+    let glob = cap_root.clone() + "/*cap.snap";
+    let mut files:Vec<fs::File> = vec!();
+    for entry in try!(::glob::glob(&glob)) {
+        files.push(try!(fs::File::open(try!(entry))));
+    }
+    let chain = helpers::ReadChain::new(files);
+    let input = SnappyFramedDecoder::new(chain, Ignore);
+    Ok(EntityReader::for_reader(input))
 }
 
 impl <R:io::Read> Iterator for EntityReader<R> {
