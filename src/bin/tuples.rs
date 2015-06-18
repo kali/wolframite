@@ -12,7 +12,7 @@ fn main() {
 
 fn run() -> WikiResult<()> {
     let mut wd = wikidata::Wikidata::latest_compiled().unwrap();
-    for e in try!(wd.entities()) {
+    for e in try!(wd.entity_iter()) {
         let e = try!(e);
         for t in try!(e.triplets()) {
             if t.1 == wikidata::EntityRef::P(106) && t.2 == wikidata::EntityRef::Q(33999) {

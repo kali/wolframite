@@ -25,7 +25,7 @@ fn run() -> WikiResult<()> {
     try!(fs::create_dir_all(target_root.clone()));
     let filename = target_root.clone()+"/labels";
     Cdb::new(path::Path::new(&*filename), |creator| {
-        let it = wikidata::entity_reader(&*date).unwrap();
+        let it = wikidata::entity_iter(&*date).unwrap();
         for (i, message) in it.enumerate() {
             let message = message.unwrap();
             creator.add(&*message.get_id().unwrap().as_bytes(),

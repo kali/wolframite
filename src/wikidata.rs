@@ -31,14 +31,14 @@ use snappy_framed::read::CrcMode::Ignore;
 use tinycdb::Cdb;
 
 pub type WikiResult<T> = Result<T,WikiError>;
+pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
+pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>;
+pub type EntityIterIter = Iterator<Item=Box<EntityIter>>;
 
 pub struct Wikidata {
     date:String,
     labels:Box<Cdb>
 }
-
-pub type WikidataReader = EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>;
-pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 
 impl Wikidata {
     fn for_date(date:&str) -> WikiResult<Wikidata> {
@@ -61,13 +61,17 @@ impl Wikidata {
         (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
     }
 
-    pub fn entities(&self) -> WikiResult<WikidataReader> {
-        entity_reader(&*self.date)
+    pub fn entity_iter(&self) -> WikiResult<Box<EntityIter>> {
+        entity_iter(&*self.date)
+    }
+
+    pub fn entity_iter_iter(&self) -> WikiResult<Box<EntityIterIter>> {
+        entity_iter_iter(&*self.date)
     }
 
     pub fn triplets(&self) ->
             WikiResult<Box<Iterator<Item=WikiResult<WikidataTriplet>>>> {
-        Ok(Box::new(try!(self.entities()).flat_map(|entity| {
+        Ok(Box::new(try!(self.entity_iter()).flat_map(|entity| {
             match entity {
                 Ok(e) => {
                     let source = EntityRef::from_id(e.get_id().unwrap());
@@ -78,22 +82,21 @@ impl Wikidata {
             }
         })))
     }
-
 }
 
+pub fn entity_iter(date:&str) -> WikiResult<Box<EntityIter>> {
+    let reader = try!(entity_iter_iter(date)).flat_map(|it| it);
+    Ok(Box::new(reader))
+}
 
-
-pub fn entity_reader(date:&str) ->
-        WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
+pub fn entity_iter_iter(date:&str) -> WikiResult<Box<EntityIterIter>> {
     let cap_root = helpers::data_dir_for("cap", "wikidata", date);
     let glob = cap_root.clone() + "/*cap.snap";
-    let mut files:Vec<fs::File> = vec!();
+    let mut files:Vec<Box<EntityIter>> = vec!();
     for entry in try!(::glob::glob(&glob)) {
-        files.push(try!(fs::File::open(try!(entry))));
+        files.push(Box::new(EntityReader::for_reader(SnappyFramedDecoder::new(try!(fs::File::open(try!(entry))), Ignore))));
     }
-    let chain = helpers::ReadChain::new(files);
-    let input = SnappyFramedDecoder::new(chain, Ignore);
-    Ok(EntityReader::for_reader(input))
+    Ok(Box::new(files.into_iter()))
 }
 
 trait MapWrapper {
