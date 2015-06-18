@@ -37,18 +37,15 @@ pub struct Wikidata {
     labels:Box<Cdb>
 }
 
+pub type WikidataReader = EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>;
+
 impl Wikidata {
     fn for_date(date:&str) -> WikiResult<Wikidata> {
         let labels_file = helpers::data_dir_for("labels", "wikidata", date) + "/labels";
         let labels = try!(Cdb::open(path::Path::new(&*labels_file)));
         Ok(Wikidata { date: date.to_string(), labels:labels })
     }
-/*
-    fn latest_downloaded() -> Wikidata {
-        let date = helpers::latest("download", "wikidata").unwrap().unwrap();
-        Wikidata::for_date(date)
-    }
-*/
+
     pub fn latest_compiled() -> WikiResult<Wikidata> {
         let date1 = helpers::latest("labels", "wikidata").unwrap().unwrap();
         let date2 = helpers::latest("cap", "wikidata").unwrap().unwrap();
@@ -63,11 +60,25 @@ impl Wikidata {
         (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
     }
 
-    pub fn entities(&self) ->
-            WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
+    pub fn entities(&self) -> WikiResult<WikidataReader> {
         entity_reader(&*self.date)
     }
+
+    pub fn tuples(&self) -> Box<Iterator<Item=(EntityRef,EntityRef,EntityRef)>> {
+        Box::new(
+            self.entities().unwrap().flat_map(|e| {
+                let e = e.unwrap();
+                let source = EntityRef::from_id(e.get_id().unwrap());
+                let relations = e.get_relations().unwrap();
+                let threes:Vec<(EntityRef,EntityRef,EntityRef)> =
+                    relations.iter().map(|pair| (source, pair.0, pair.1)).collect();
+                threes
+            }))
+    }
+
 }
+
+
 
 pub fn entity_reader(date:&str) ->
         WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
@@ -100,6 +111,34 @@ impl <'a> MapWrapper for Map::Reader<'a> {
             }
         }
         Ok(None)
+    }
+}
+
+#[derive(Clone,Copy)]
+pub enum EntityRef { Property(u32), Item(u32) }
+
+impl EntityRef {
+    pub fn from_id(id:&str) -> EntityRef {
+        let (first,rest) = id.slice_shift_char().unwrap();
+        let i:u32 = rest.parse().unwrap();
+        match first {
+            'P' => EntityRef::Property(i),
+            'Q' => EntityRef::Item(i),
+            _   => panic!("id must start by P or Q")
+        }
+    }
+    fn from_wikibaseentityid(r:WikibaseEntityRef::Reader) -> EntityRef {
+        let id = r.get_id();
+        match r.get_type().unwrap() {
+            EntityType::Property => EntityRef::Property(id),
+            EntityType::Item => EntityRef::Item(id)
+        }
+    }
+    pub fn get_id(&self) -> String {
+        match self {
+            &EntityRef::Property(id) => format!("P{}", id),
+            &EntityRef::Item(id) => format!("Q{}", id),
+        }
     }
 }
 
@@ -138,13 +177,32 @@ pub trait EntityHelpers {
         let claims = try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries());
         Ok(claims.iter())
     }
+
+    fn get_relations<'a>(&'a self) -> WikiResult<Vec<(EntityRef,EntityRef)>> {
+        let mut result = vec!();
+        for claim in try!(self.get_claims()) {
+            let values: ::capnp::struct_list::Reader<Claim::Reader> =
+                try!(claim.get_value().get_as());
+            for value in values.iter() {
+                let snak = try!(value.get_mainsnak());
+                match try!(snak.which()) {
+                    Snak::Somevalue(_) => (),
+                    Snak::Novalue(_) => (),
+                    Snak::Value(v) => match try!(try!(v).which()) {
+                        DataValue::Wikibaseentityid(t) =>
+                            result.push((
+                                EntityRef::from_id(try!(snak.get_property())),
+                                EntityRef::from_wikibaseentityid(try!(t))
+                            )),
+                        _ => ()
+                    }
+                }
+            }
+        }
+        Ok(result)
+    }
 }
 
-/*
-pub struct ClaimIterator<'a> {
-    map: capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Reader<'a>>, MapEntry::Reader<'a>>
-}
-*/
 
 impl EntityHelpers for MessageAndEntity {
     fn as_entity_reader(&self) -> WikiResult<Entity::Reader> {

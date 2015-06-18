@@ -27,7 +27,7 @@ struct Entity {
     descriptions @3: Map(Text,MonolingualText);
     aliases @4: Map(Text,List(MonolingualText));
     claims @5: Map(Text,List(Claim));
-    sitelinks @6: Map(Text,List(SiteLink));
+    sitelinks @6: Map(Text,SiteLink);
 }
 
 struct Claim {

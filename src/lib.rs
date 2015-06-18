@@ -1,3 +1,5 @@
+#![feature(str_char)]
+
 extern crate glob;
 extern crate bzip2;
 extern crate xml;
