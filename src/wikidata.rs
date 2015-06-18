@@ -62,6 +62,11 @@ impl Wikidata {
     pub fn get_label(&mut self, key:&str) -> Option<&str> {
         (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
     }
+
+    pub fn entities(&self) ->
+            WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
+        entity_reader(&*self.date)
+    }
 }
 
 pub fn entity_reader(date:&str) ->
@@ -127,13 +132,19 @@ pub trait EntityHelpers {
         let descriptions = try!(self.get_descriptions());
         Ok(try!(descriptions.get(lang)).map(|s| s.to_string()))
     }
-/*
-    fn get_claims(&self) -> WikiResult<Vec<Claim::Reader>> {
-        let claims = try!(try!(self.as_entity_reader()).get_claims());
-        Ok(claims)
+
+    fn get_claims<'a>(&'a self) ->
+        WikiResult<capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Reader<'a>>, MapEntry::Reader<'a>>> {
+        let claims = try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries());
+        Ok(claims.iter())
     }
-*/
 }
+
+/*
+pub struct ClaimIterator<'a> {
+    map: capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Reader<'a>>, MapEntry::Reader<'a>>
+}
+*/
 
 impl EntityHelpers for MessageAndEntity {
     fn as_entity_reader(&self) -> WikiResult<Entity::Reader> {
