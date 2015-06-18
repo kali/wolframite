@@ -38,6 +38,7 @@ pub struct Wikidata {
 }
 
 pub type WikidataReader = EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>;
+pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 
 impl Wikidata {
     fn for_date(date:&str) -> WikiResult<Wikidata> {
@@ -64,16 +65,18 @@ impl Wikidata {
         entity_reader(&*self.date)
     }
 
-    pub fn tuples(&self) -> Box<Iterator<Item=(EntityRef,EntityRef,EntityRef)>> {
-        Box::new(
-            self.entities().unwrap().flat_map(|e| {
-                let e = e.unwrap();
-                let source = EntityRef::from_id(e.get_id().unwrap());
-                let relations = e.get_relations().unwrap();
-                let threes:Vec<(EntityRef,EntityRef,EntityRef)> =
-                    relations.iter().map(|pair| (source, pair.0, pair.1)).collect();
-                threes
-            }))
+    pub fn triplets(&self) ->
+            WikiResult<Box<Iterator<Item=WikiResult<WikidataTriplet>>>> {
+        Ok(Box::new(try!(self.entities()).flat_map(|entity| {
+            match entity {
+                Ok(e) => {
+                    let source = EntityRef::from_id(e.get_id().unwrap());
+                    let relations = e.get_relations().unwrap();
+                    relations.iter().map(|pair| Ok((source, pair.0, pair.1))).collect()
+                },
+                Err(e) => vec!(Err(e))
+            }
+        })))
     }
 
 }
@@ -114,7 +117,7 @@ impl <'a> MapWrapper for Map::Reader<'a> {
     }
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone,Copy,PartialEq)]
 pub enum EntityRef { Property(u32), Item(u32) }
 
 impl EntityRef {
@@ -140,6 +143,10 @@ impl EntityRef {
             &EntityRef::Item(id) => format!("Q{}", id),
         }
     }
+    #[allow(non_snake_case)]
+    pub fn Q(id:u32) -> EntityRef { EntityRef::Item(id) }
+    #[allow(non_snake_case)]
+    pub fn P(id:u32) -> EntityRef { EntityRef::Property(id) }
 }
 
 
@@ -201,6 +208,15 @@ pub trait EntityHelpers {
         }
         Ok(result)
     }
+
+    fn as_ref(&self) -> EntityRef {
+        EntityRef::from_id(&self.get_id().unwrap())
+    }
+
+    fn triplets<'a>(&'a self) -> WikiResult<Vec<WikidataTriplet>> {
+        try!(self.get_relations()).iter().map(|pair| Ok((self.as_ref(), pair.0, pair.1))).collect()
+    }
+
 }
 
 

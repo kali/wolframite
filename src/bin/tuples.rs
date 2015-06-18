@@ -11,12 +11,15 @@ fn main() {
 }
 
 fn run() -> WikiResult<()> {
-    let wd = wikidata::Wikidata::latest_compiled().unwrap();
-    for entity in try!(wd.entities()) {
-        let entity = try!(entity);
-        for tuple in try!(entity.get_relations()) {
-            println!("{}\t{}\t{}", entity.get_id().unwrap(),
-                tuple.0.get_id(), tuple.1.get_id())
+    let mut wd = wikidata::Wikidata::latest_compiled().unwrap();
+    for e in try!(wd.entities()) {
+        let e = try!(e);
+        for t in try!(e.triplets()) {
+            if t.1 == wikidata::EntityRef::P(106) && t.2 == wikidata::EntityRef::Q(33999) {
+                println!("{} {}",
+                    t.1.get_id(),
+                    wd.get_label(try!(e.get_id())).unwrap_or("no label"));
+            }
         }
     }
     Ok( () )
