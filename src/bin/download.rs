@@ -61,7 +61,7 @@ fn download_wikidata(date:Option<String>) {
     fs::create_dir_all(&*dir).unwrap();
     let filename = format!("{}/wikidata-{}.json.gz", &*dir, &*date);
     download_if_smaller(url, filename);
-    let _ = fs::File::create(format!("{}/{}/ok", &*dir, &*date));
+    let _ = fs::File::create(format!("{}/ok", &*dir));
 }
 
 fn download_wiki(lang:&String, optdate:Option<String>) {

@@ -7,6 +7,8 @@ extern crate serde;
 extern crate capnp;
 extern crate capnpc;
 
+extern crate tinycdb;
+
 use std::io;
 use std::error::Error;
 
@@ -72,5 +74,11 @@ impl <'a> From<&'a str> for WikiError {
 impl From<String> for WikiError {
     fn from(err: String) -> WikiError {
         WikiError::Other(err)
+    }
+}
+
+impl From<tinycdb::CdbError> for WikiError {
+    fn from(err: tinycdb::CdbError) -> WikiError {
+        WikiError::Other(format!("{:?}", err))
     }
 }

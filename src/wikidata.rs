@@ -1,5 +1,6 @@
 use std::io;
 use std::fs;
+use std::path;
 use std::io::prelude::*;
 use std::error::Error;
 
@@ -27,7 +28,54 @@ pub use wiki_capnp::{ EntityType };
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode::Ignore;
 
+use tinycdb::Cdb;
+
 pub type WikiResult<T> = Result<T,WikiError>;
+
+pub struct Wikidata {
+    date:String,
+    labels:Box<Cdb>
+}
+
+impl Wikidata {
+    fn for_date(date:&str) -> WikiResult<Wikidata> {
+        let labels_file = helpers::data_dir_for("labels", "wikidata", date) + "/labels";
+        let labels = try!(Cdb::open(path::Path::new(&*labels_file)));
+        Ok(Wikidata { date: date.to_string(), labels:labels })
+    }
+/*
+    fn latest_downloaded() -> Wikidata {
+        let date = helpers::latest("download", "wikidata").unwrap().unwrap();
+        Wikidata::for_date(date)
+    }
+*/
+    pub fn latest_compiled() -> WikiResult<Wikidata> {
+        let date1 = helpers::latest("labels", "wikidata").unwrap().unwrap();
+        let date2 = helpers::latest("cap", "wikidata").unwrap().unwrap();
+        if date1 != date2 {
+            Err(WikiError::Other("latest wikidate seems only partially compiled".to_string()))
+        } else {
+            Wikidata::for_date(&*date1)
+        }
+    }
+
+    pub fn get_label(&mut self, key:&str) -> Option<&str> {
+        (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
+    }
+}
+
+pub fn entity_reader(date:&str) ->
+        WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
+    let cap_root = helpers::data_dir_for("cap", "wikidata", date);
+    let glob = cap_root.clone() + "/*cap.snap";
+    let mut files:Vec<fs::File> = vec!();
+    for entry in try!(::glob::glob(&glob)) {
+        files.push(try!(fs::File::open(try!(entry))));
+    }
+    let chain = helpers::ReadChain::new(files);
+    let input = SnappyFramedDecoder::new(chain, Ignore);
+    Ok(EntityReader::for_reader(input))
+}
 
 trait MapWrapper {
     fn get(&self, key:&str) -> WikiResult<Option<&str>>;
@@ -105,19 +153,6 @@ impl <R:io::Read> EntityReader<R> {
             stream:io::BufReader::new(r),
         }
     }
-}
-
-pub fn for_date(date:&str) ->
-        WikiResult<EntityReader<SnappyFramedDecoder<helpers::ReadChain<fs::File>>>> {
-    let cap_root = helpers::data_dir_for("cap", "wikidata", date);
-    let glob = cap_root.clone() + "/*cap.snap";
-    let mut files:Vec<fs::File> = vec!();
-    for entry in try!(::glob::glob(&glob)) {
-        files.push(try!(fs::File::open(try!(entry))));
-    }
-    let chain = helpers::ReadChain::new(files);
-    let input = SnappyFramedDecoder::new(chain, Ignore);
-    Ok(EntityReader::for_reader(input))
 }
 
 impl <R:io::Read> Iterator for EntityReader<R> {
