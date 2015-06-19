@@ -34,6 +34,7 @@ pub type WikiResult<T> = Result<T,WikiError>;
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>;
 pub type EntityIterIter = Iterator<Item=Box<EntityIter>>;
+pub type BoxedIter<Item> = Box<Iterator<Item=Item>>;
 
 pub struct Wikidata {
     date:String,
@@ -61,23 +62,24 @@ impl Wikidata {
         (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
     }
 
-    pub fn entity_iter(&self) -> WikiResult<Box<EntityIter>> {
+    pub fn entity_iter(&self)
+            -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
         entity_iter(&*self.date)
     }
 
-    pub fn entity_iter_iter(&self) -> WikiResult<Box<EntityIterIter>> {
+    pub fn entity_iter_iter(&self)
+            -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndEntity>>>> {
         entity_iter_iter(&*self.date)
     }
 
     pub fn triplets_iter_iter(&self) ->
-            WikiResult<Box<Iterator<Item=Box<Iterator<Item=WikidataTriplet>>>>> {
+            WikiResult<BoxedIter<BoxedIter<WikidataTriplet>>> {
         Ok(Box::new(try!(self.entity_iter()).map(|entity| {
             entity.and_then(|e| e.triplets()).unwrap()
         })))
     }
 
-    pub fn triplets_iter(&self) ->
-            WikiResult<Box<Iterator<Item=WikidataTriplet>>> {
+    pub fn triplets_iter(&self) -> WikiResult<BoxedIter<WikidataTriplet>> {
         let iter_iter = try!(self.triplets_iter_iter());
         Ok(Box::new(iter_iter.flat_map(|it| it)))
     }

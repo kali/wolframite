@@ -12,13 +12,12 @@ fn main() {
 
 fn run() -> WikiResult<()> {
     let mut wd = wikidata::Wikidata::latest_compiled().unwrap();
-    for e in try!(wd.entity_iter()) {
-        let e = try!(e);
-        for t in try!(e.triplets()) {
+    for e in try!(wd.triplets_iter_iter()) {
+        for t in e {
             if t.1 == wikidata::EntityRef::P(106) && t.2 == wikidata::EntityRef::Q(33999) {
                 println!("{} {}",
                     t.1.get_id(),
-                    wd.get_label(try!(e.get_id())).unwrap_or("no label"));
+                    wd.get_label(&*t.0.get_id()).unwrap_or("no label"));
             }
         }
     }
