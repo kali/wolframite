@@ -69,18 +69,17 @@ impl Wikidata {
         entity_iter_iter(&*self.date)
     }
 
-    pub fn triplets(&self) ->
-            WikiResult<Box<Iterator<Item=WikiResult<WikidataTriplet>>>> {
-        Ok(Box::new(try!(self.entity_iter()).flat_map(|entity| {
-            match entity {
-                Ok(e) => {
-                    let source = EntityRef::from_id(e.get_id().unwrap());
-                    let relations = e.get_relations().unwrap();
-                    relations.iter().map(|pair| Ok((source, pair.0, pair.1))).collect()
-                },
-                Err(e) => vec!(Err(e))
-            }
+    pub fn triplets_iter_iter(&self) ->
+            WikiResult<Box<Iterator<Item=Box<Iterator<Item=WikidataTriplet>>>>> {
+        Ok(Box::new(try!(self.entity_iter()).map(|entity| {
+            entity.and_then(|e| e.triplets()).unwrap()
         })))
+    }
+
+    pub fn triplets_iter(&self) ->
+            WikiResult<Box<Iterator<Item=WikidataTriplet>>> {
+        let iter_iter = try!(self.triplets_iter_iter());
+        Ok(Box::new(iter_iter.flat_map(|it| it)))
     }
 }
 
@@ -188,7 +187,8 @@ pub trait EntityHelpers {
         Ok(claims.iter())
     }
 
-    fn get_relations<'a>(&'a self) -> WikiResult<Vec<(EntityRef,EntityRef)>> {
+    fn get_relations(&self) ->
+            WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>>> {
         let mut result = vec!();
         for claim in try!(self.get_claims()) {
             let values: ::capnp::struct_list::Reader<Claim::Reader> =
@@ -209,15 +209,18 @@ pub trait EntityHelpers {
                 }
             }
         }
-        Ok(result)
+        Ok(Box::new(result.into_iter()))
     }
 
     fn as_ref(&self) -> EntityRef {
         EntityRef::from_id(&self.get_id().unwrap())
     }
 
-    fn triplets<'a>(&'a self) -> WikiResult<Vec<WikidataTriplet>> {
-        try!(self.get_relations()).iter().map(|pair| Ok((self.as_ref(), pair.0, pair.1))).collect()
+    fn triplets(& self) -> WikiResult<Box<Iterator<Item=WikidataTriplet>>> {
+        let my_ref = self.as_ref();
+        let it = try!(self.get_relations())
+            .map(move |pair| (my_ref, pair.0, pair.1));
+        Ok(Box::new(it))
     }
 
 }
