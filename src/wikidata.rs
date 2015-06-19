@@ -32,9 +32,9 @@ use tinycdb::Cdb;
 
 pub type WikiResult<T> = Result<T,WikiError>;
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
-pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>;
-pub type EntityIterIter = Iterator<Item=Box<EntityIter>>;
-pub type BoxedIter<Item> = Box<Iterator<Item=Item>>;
+pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
+pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
+pub type BoxedIter<Item> = Box<Iterator<Item=Item>+Send>;
 
 pub struct Wikidata {
     date:String,
@@ -74,9 +74,13 @@ impl Wikidata {
 
     pub fn triplets_iter_iter(&self) ->
             WikiResult<BoxedIter<BoxedIter<WikidataTriplet>>> {
-        Ok(Box::new(try!(self.entity_iter()).map(|entity| {
-            entity.and_then(|e| e.triplets()).unwrap()
-        })))
+        Ok(Box::new(try!(self.entity_iter_iter()).map(
+            |entity_iter:Box<EntityIter>| -> Box<Iterator<Item=WikidataTriplet>+Send> {
+                Box::new(entity_iter.flat_map(
+                    |e:WikiResult<MessageAndEntity>| e.unwrap().triplets().unwrap()
+                ))
+            }
+        )))
     }
 
     pub fn triplets_iter(&self) -> WikiResult<BoxedIter<WikidataTriplet>> {
@@ -190,7 +194,7 @@ pub trait EntityHelpers {
     }
 
     fn get_relations(&self) ->
-            WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>>> {
+            WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>+Send>> {
         let mut result = vec!();
         for claim in try!(self.get_claims()) {
             let values: ::capnp::struct_list::Reader<Claim::Reader> =
@@ -218,7 +222,7 @@ pub trait EntityHelpers {
         EntityRef::from_id(&self.get_id().unwrap())
     }
 
-    fn triplets(& self) -> WikiResult<Box<Iterator<Item=WikidataTriplet>>> {
+    fn triplets(& self) -> WikiResult<Box<Iterator<Item=WikidataTriplet>+Send>> {
         let my_ref = self.as_ref();
         let it = try!(self.get_relations())
             .map(move |pair| (my_ref, pair.0, pair.1));
