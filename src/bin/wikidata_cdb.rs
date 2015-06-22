@@ -11,8 +11,6 @@ use wolframite::helpers;
 use wolframite::wikidata;
 use wolframite::wikidata::EntityHelpers;
 
-use wolframite::wikidata::MongolingualText;
-
 pub type WikiResult<T> = Result<T,WikiError>;
 
 fn main() {

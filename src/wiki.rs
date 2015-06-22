@@ -16,8 +16,6 @@ use capnp::serialize_packed;
 use capnp::{MessageBuilder};
 use capnp::message::MessageReader;
 
-use capn_wiki::wiki_capnp as wiki_capnp;
-
 pub use capn_wiki::wiki_capnp::page as Page;
 
 pub struct Wiki {

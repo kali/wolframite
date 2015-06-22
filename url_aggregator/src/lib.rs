@@ -4,8 +4,8 @@ use std::collections::{ BTreeSet, BTreeMap };
 fn lineage(url:&str) -> Vec<String> {
     let mut result = vec!();
     let splits:Vec<&str> = url.split("/").collect();
-    let mut prefix = splits[0..2].connect("/");
-    for token in splits[2..].iter() {
+    let mut prefix = splits[0..1].connect("/");
+    for token in splits[1..].iter() {
         prefix.push('/');
         prefix.push_str(token);
         result.push(prefix.clone());
@@ -18,13 +18,15 @@ pub fn aggregate_urls(set:&BTreeSet<String>) -> Vec<(String,usize, usize)> {
     let mut result:BTreeMap<String,(usize,usize)> = BTreeMap::new();
     for url in set {
         let mut lineage = lineage(&*url);
-        lineage.pop();
-        let last_parent = lineage.last().unwrap().clone();
-        let previous = *result.get(&*last_parent).unwrap_or(&(0usize,0usize));
-        result.insert(last_parent, (previous.0, previous.1 + 1));
-        for parent in lineage {
-            let previous = *result.get(&*parent).unwrap_or(&(0usize,0usize));
-            result.insert(parent, (previous.0 + 1, previous.1));
+        if lineage.len() > 0 {
+            lineage.pop();
+            let last_parent = lineage.last().unwrap().clone();
+            let previous = *result.get(&*last_parent).unwrap_or(&(0usize,0usize));
+            result.insert(last_parent, (previous.0, previous.1 + 1));
+            for parent in lineage {
+                let previous = *result.get(&*parent).unwrap_or(&(0usize,0usize));
+                result.insert(parent, (previous.0 + 1, previous.1));
+            }
         }
     };
     result.iter().filter( |&(_,v)| -> bool {
@@ -35,6 +37,8 @@ pub fn aggregate_urls(set:&BTreeSet<String>) -> Vec<(String,usize, usize)> {
 #[test]
 fn test_url_aggregator() {
     let mut set = BTreeSet::new();
+    set.insert("http://a.b.c".to_string());
+    set.insert("http://a.b.c/".to_string());
     set.insert("http://a.b.c/a".to_string());
     set.insert("http://a.b.c/a/b/b".to_string());
     set.insert("http://a.b.c/a/b/c/d".to_string());

@@ -11,15 +11,19 @@ use regex::Regex;
 use simple_parallel::pool::Pool;
 use wolframite::{ WikiResult, BoxedIter };
 use wolframite::wikidata;
-use wolframite::wiki::Wiki;
+use wolframite::wiki;
 use wolframite::wikidata::EntityHelpers;
 use wolframite::wiki::Page::Which::{Text,Redirect};
+
+use wolframite::wikidata::EntityRef;
 
 fn main() {
     let mut pages = Mutex::new(HashSet::new());
     grep_entities(&mut pages).unwrap();
+    println!("count: {}", pages.lock().unwrap().len());
     let urls = Mutex::new(BTreeSet::new());
     grep_urls("enwiki", &*pages.lock().unwrap(), &urls).unwrap();
+    println!("urls: {}", urls.lock().unwrap().len());
     let result = url_aggregator::aggregate_urls(&*urls.lock().unwrap());
     for u in result {
         println!("{:5} {:5} {}", u.1, u.2, u.0);
@@ -28,10 +32,12 @@ fn main() {
 
 fn grep_urls(wikiname:&str, set:&HashSet<String>, urls:&Mutex<BTreeSet<String>>) -> WikiResult<()> {
     let re = Regex::new(r#"\[(http.*?) .*\]"#).unwrap();
-    let wiki = try!(Wiki::latest_compiled(wikiname));
+    let wiki = try!(wiki::Wiki::latest_compiled(wikiname));
+    let mut pool = Pool::new(1+num_cpus::get());
     let chunks = try!(wiki.page_iter_iter());
-    chunks.map(|chunk| {
-        for page in chunk {
+
+    let each = |it:Box<Iterator<Item=WikiResult<wiki::MessageAndPage>>+Send>| -> () {
+        for page in it {
             let page = page.unwrap();
             let reader = page.as_page_reader().unwrap();
             let title = reader.get_title().unwrap();
@@ -47,7 +53,8 @@ fn grep_urls(wikiname:&str, set:&HashSet<String>, urls:&Mutex<BTreeSet<String>>)
                 }
             }
         }
-    }).count();
+    };
+    let _ = unsafe { pool.map(chunks, &each).count() };
     Ok( () )
 }
 
@@ -60,8 +67,8 @@ fn grep_entities(set: &mut Mutex<HashSet<String>>) -> WikiResult<()> {
         for e in it {
             let e = e.unwrap();
             if e.get_relations().unwrap().any(|t:(wikidata::EntityRef,wikidata::EntityRef)|
-               t.0 == wikidata::EntityRef::P(106) &&
-               t.1 == wikidata::EntityRef::Q(33999)
+               // t.0 == P(106) && t.1 == Q(33999) // actor
+               t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) // movie
             ) {
                 if let Some(sitelink) = e.get_sitelink("enwiki").unwrap() {
                     let mut locked = set.lock().unwrap();
@@ -71,11 +78,6 @@ fn grep_entities(set: &mut Mutex<HashSet<String>>) -> WikiResult<()> {
         }
     };
     let _ = unsafe { pool.map(chunks, &each).count() };
-//    chunks.map(|it| each(Box::new(it))).count();
-    {
-        let locked = set.lock().unwrap();
-        println!("count: {}", locked.len());
-    }
     Ok( () )
 }
 
