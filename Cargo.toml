@@ -2,7 +2,6 @@
 name = "wolframite"
 version = "0.1.0"
 authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
-build = "build.rs"
 
 [dependencies]
 hyper = "*"
@@ -12,15 +11,17 @@ bzip2 = "*"
 xml-rs = "*"
 snappy_framed = "*"
 capnp = "*"
-capnpc = "*"
 simple_parallel = "0.2"
 num_cpus = "0.2.6"
 serde = "*"
 flate2 = "0.2.7"
 #tinycdb = "*"
 
+[dependencies.capn-wiki]
+path = "capn-wiki"
+
+[dependencies.url_aggregator]
+path = "url_aggregator"
+
 [dependencies.tinycdb]
 path = "/Users/kali/dev/github/tinycdb-rs"
-
-[build-dependencies]
-capnpc = "*"

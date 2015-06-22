@@ -3,8 +3,8 @@ name = "wolframite"
 version = "0.1.0"
 dependencies = [
  "bzip2 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "capn-wiki 0.1.0",
  "capnp 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "capnpc 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "flate2 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "glob 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -14,6 +14,7 @@ dependencies = [
  "simple_parallel 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "snappy_framed 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tinycdb 0.0.5",
+ "url_aggregator 0.1.0",
  "xml-rs 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -56,6 +57,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "gcc 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "capn-wiki"
+version = "0.1.0"
+dependencies = [
+ "capnp 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "capnpc 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -359,6 +368,10 @@ dependencies = [
  "matches 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "url_aggregator"
+version = "0.1.0"
 
 [[package]]
 name = "xml-rs"

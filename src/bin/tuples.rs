@@ -3,7 +3,7 @@ extern crate simple_parallel;
 extern crate num_cpus;
 extern crate regex;
 
-use std::collections::HashSet;
+use std::collections::{ BTreeSet, HashSet };
 use std::sync::Mutex;
 use regex::Regex;
 
@@ -16,12 +16,13 @@ use wolframite::wikidata::EntityHelpers;
 use wolframite::wiki_capnp::page::Which::{Text,Redirect};
 
 fn main() {
-    let mut set = Mutex::new(HashSet::new());
-    grep_entities(&mut set).unwrap();
-    grep_urls("enwiki", &*set.lock().unwrap()).unwrap();
+    let mut pages = Mutex::new(HashSet::new());
+    grep_entities(&mut pages).unwrap();
+    let mut urls = Mutex::new(BTreeSet::new());
+    grep_urls("enwiki", &*pages.lock().unwrap(), &urls).unwrap();
 }
 
-fn grep_urls(wikiname:&str, set:&HashSet<String>) -> WikiResult<()> {
+fn grep_urls(wikiname:&str, set:&HashSet<String>, urls:&Mutex<BTreeSet<String>>) -> WikiResult<()> {
     let re = Regex::new(r#"\[(http.*?) .*\]"#).unwrap();
     let wiki = try!(Wiki::latest_compiled(wikiname));
     let chunks = try!(wiki.page_iter_iter());
@@ -35,7 +36,7 @@ fn grep_urls(wikiname:&str, set:&HashSet<String>) -> WikiResult<()> {
                     Text(text) => {
                         let text = text.unwrap();
                         for cap in re.captures_iter(text) {
-                            println!("{}\t{}\t{}", wikiname, title, cap.at(1).unwrap());
+                            urls.lock().unwrap().insert(cap.at(1).unwrap().to_owned());
                         }
                     },
                     Redirect(_) => {}

@@ -7,20 +7,18 @@ extern crate snappy_framed;
 extern crate serde;
 
 extern crate capnp;
-extern crate capnpc;
+extern crate capn_wiki;
 
 extern crate tinycdb;
 
 use std::io;
 use std::error::Error;
 
+pub use capn_wiki::wiki_capnp as wiki_capnp;
 pub mod helpers;
 pub mod cap;
 pub mod wikidata;
-
-pub mod wiki_capnp {
-    include!(concat!(env!("OUT_DIR"), "/wiki_capnp.rs"));
-}
+pub mod urls;
 
 #[derive(Debug)]
 pub enum WikiError {

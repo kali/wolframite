@@ -1,0 +1,12 @@
+[package]
+name = "capn-wiki"
+version = "0.1.0"
+authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
+build = "build.rs"
+
+[dependencies]
+capnp = "*"
+capnpc = "*"
+
+[build-dependencies]
+capnpc = "*"

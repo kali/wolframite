@@ -11,6 +11,7 @@ struct Page {
         css @2;
         javascript @3;
         scribunto @4;
+        json @5;
     }
     union {
         redirect @3: Text;
