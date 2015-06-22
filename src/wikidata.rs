@@ -10,6 +10,7 @@ use capnp;
 use capnp::message::MessageReader;
 use WikiError;
 use WikiResult;
+use BoxedIter;
 
 pub use wiki_capnp::page as Page;
 pub use wiki_capnp::entity as Entity;
@@ -34,7 +35,6 @@ use tinycdb::Cdb;
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
 pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
-pub type BoxedIter<Item> = Box<Iterator<Item=Item>+Send>;
 
 pub struct Wikidata {
     date:String,
@@ -125,7 +125,7 @@ impl <'a> MapWrapper for Map::Reader<'a> {
     }
 }
 
-#[derive(Clone,Copy,PartialEq)]
+#[derive(Clone,Copy,PartialEq,Debug)]
 pub enum EntityRef { Property(u32), Item(u32) }
 
 impl EntityRef {
@@ -173,6 +173,10 @@ pub trait EntityHelpers {
         Ok(try!(try!(self.as_entity_reader()).get_labels()))
     }
 
+    fn get_sitelinks(&self) -> WikiResult<Map::Reader> {
+        Ok(try!(try!(self.as_entity_reader()).get_sitelinks()))
+    }
+
     fn get_descriptions(&self) -> WikiResult<Map::Reader> {
         Ok(try!(try!(self.as_entity_reader()).get_descriptions()))
     }
@@ -185,6 +189,11 @@ pub trait EntityHelpers {
     fn get_description(&self, lang:&str) -> WikiResult<Option<String>> {
         let descriptions = try!(self.get_descriptions());
         Ok(try!(descriptions.get(lang)).map(|s| s.to_string()))
+    }
+
+    fn get_sitelink(&self, lang:&str) -> WikiResult<Option<String>> {
+        let sitelinks = try!(self.get_sitelinks());
+        Ok(try!(sitelinks.get(lang)).map(|s| s.to_string()))
     }
 
     fn get_claims<'a>(&'a self) ->

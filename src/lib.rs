@@ -32,6 +32,7 @@ pub enum WikiError {
 }
 
 pub type WikiResult<T> = Result<T,WikiError>;
+pub type BoxedIter<Item> = Box<Iterator<Item=Item>+Send>;
 
 impl From<io::Error> for WikiError {
     fn from(err: io::Error) -> WikiError {
