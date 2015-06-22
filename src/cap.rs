@@ -205,6 +205,7 @@ fn consume_revision<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) 
                     "wikibase-item" => Page::Model::Wikibaseitem,
                     "css" => Page::Model::Css,
                     "json" => Page::Model::Json,
+                    "flow-board" => Page::Model::Flowboard,
                     "javascript" => Page::Model::Javascript,
                     "Scribunto" => Page::Model::Scribunto,
                     m => return Err(io::Error::new(io::ErrorKind::Other, "invalid model : ".to_string() + m))

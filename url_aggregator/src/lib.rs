@@ -27,7 +27,7 @@ pub fn aggregate_urls(set:&BTreeSet<String>) -> Vec<(String,usize, usize)> {
             result.insert(parent, (previous.0 + 1, previous.1));
         }
     };
-    result.iter().filter( |&(k,v)| -> bool {
+    result.iter().filter( |&(_,v)| -> bool {
         v.0 > 1 && v.0 > (set.len() / 1000) && v.1 > v.0 / 2
     }).map(|(k,v)| -> (String,usize,usize) { (k.clone(),v.0,v.1) }).collect()
 }

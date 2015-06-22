@@ -2,15 +2,15 @@ extern crate wolframite;
 extern crate simple_parallel;
 extern crate num_cpus;
 extern crate regex;
+extern crate url_aggregator;
 
 use std::collections::{ BTreeSet, HashSet };
 use std::sync::Mutex;
 use regex::Regex;
 
 use simple_parallel::pool::Pool;
-use wolframite::{ WikiResult, WikiError, BoxedIter };
+use wolframite::{ WikiResult, BoxedIter };
 use wolframite::wikidata;
-use wolframite::wikidata::Wikidata;
 use wolframite::cap::Wiki;
 use wolframite::wikidata::EntityHelpers;
 use wolframite::wiki_capnp::page::Which::{Text,Redirect};
@@ -18,8 +18,12 @@ use wolframite::wiki_capnp::page::Which::{Text,Redirect};
 fn main() {
     let mut pages = Mutex::new(HashSet::new());
     grep_entities(&mut pages).unwrap();
-    let mut urls = Mutex::new(BTreeSet::new());
+    let urls = Mutex::new(BTreeSet::new());
     grep_urls("enwiki", &*pages.lock().unwrap(), &urls).unwrap();
+    let result = url_aggregator::aggregate_urls(&*urls.lock().unwrap());
+    for u in result {
+        println!("{:5} {:5} {}", u.1, u.2, u.0);
+    }
 }
 
 fn grep_urls(wikiname:&str, set:&HashSet<String>, urls:&Mutex<BTreeSet<String>>) -> WikiResult<()> {

@@ -7,7 +7,9 @@ extern crate snappy_framed;
 extern crate serde;
 
 extern crate capnp;
+
 extern crate capn_wiki;
+extern crate url_aggregator;
 
 extern crate tinycdb;
 
@@ -18,7 +20,6 @@ pub use capn_wiki::wiki_capnp as wiki_capnp;
 pub mod helpers;
 pub mod cap;
 pub mod wikidata;
-pub mod urls;
 
 #[derive(Debug)]
 pub enum WikiError {

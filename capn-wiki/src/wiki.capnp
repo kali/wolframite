@@ -12,6 +12,7 @@ struct Page {
         javascript @3;
         scribunto @4;
         json @5;
+        flowboard @6;
     }
     union {
         redirect @3: Text;
