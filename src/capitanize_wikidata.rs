@@ -1,42 +1,30 @@
-
-use xml::reader::{ EventReader, Events };
-use xml::reader::events::*;
-
-use WikiError;
-use WikiResult;
-use BoxedIter;
-use helpers;
-
-use std::io;
-use std::fs;
-use std::error::Error;
+use std::{ io, fs, path };
 use std::io::prelude::*;
-use std::path;
 
 use serde::json;
-use snappy_framed::read::SnappyFramedDecoder;
-use snappy_framed::read::CrcMode::Ignore;
 
-use capnp;
+use snappy_framed::write::SnappyFramedEncoder;
+
 use capnp::serialize_packed;
-use capnp::{MessageBuilder, MallocMessageBuilder};
-use capnp::message::MessageReader;
-
 use capnp::struct_list as StructList;
-pub use wiki_capnp::page as Page;
-pub use wiki_capnp::entity as Entity;
-pub use wiki_capnp::map as Map;
-pub use wiki_capnp::map::entry as MapEntry;
-pub use wiki_capnp::monolingual_text as MongolingualText;
-pub use wiki_capnp::site_link as SiteLink;
-pub use wiki_capnp::claim as Claim;
-pub use wiki_capnp::snak as Snak;
-pub use wiki_capnp::data_value as DataValue;
-pub use wiki_capnp::wikibase_entity_ref as WikibaseEntityRef;
-pub use wiki_capnp::time as Time;
-pub use wiki_capnp::quantity as Quantity;
-pub use wiki_capnp::globe_coordinate as GlobeCoordinate;
-pub use wiki_capnp::{ EntityType };
+use capnp::{MessageBuilder, MallocMessageBuilder};
+
+pub use capn_wiki::wiki_capnp::page as Page;
+pub use capn_wiki::wiki_capnp::entity as Entity;
+pub use capn_wiki::wiki_capnp::map as Map;
+pub use capn_wiki::wiki_capnp::map::entry as MapEntry;
+pub use capn_wiki::wiki_capnp::monolingual_text as MongolingualText;
+pub use capn_wiki::wiki_capnp::site_link as SiteLink;
+pub use capn_wiki::wiki_capnp::claim as Claim;
+pub use capn_wiki::wiki_capnp::snak as Snak;
+pub use capn_wiki::wiki_capnp::data_value as DataValue;
+pub use capn_wiki::wiki_capnp::wikibase_entity_ref as WikibaseEntityRef;
+pub use capn_wiki::wiki_capnp::time as Time;
+pub use capn_wiki::wiki_capnp::quantity as Quantity;
+pub use capn_wiki::wiki_capnp::globe_coordinate as GlobeCoordinate;
+pub use capn_wiki::wiki_capnp::{ EntityType };
+
+use {WikiResult, WikiError};
 
 macro_rules! println_stderr(
     ($($arg:tt)*) => (
@@ -47,197 +35,7 @@ macro_rules! println_stderr(
     )
 );
 
-use snappy_framed::write::SnappyFramedEncoder;
-
-// READ PAGE FROM CAP
-
-pub struct Wiki {
-    wiki:String,
-    date:String,
-}
-
-impl Wiki {
-    pub fn for_date(wiki:&str, date:&str) -> WikiResult<Wiki> {
-        Ok( Wiki{ wiki:wiki.to_string(), date:date.to_string() } )
-    }
-
-    pub fn latest_compiled(wiki:&str) -> WikiResult<Wiki> {
-        let date = helpers::latest("cap", wiki).unwrap().unwrap();
-        Wiki::for_date(wiki, &*date)
-    }
-
-    pub fn page_iter(&self) -> WikiResult<BoxedIter<WikiResult<MessageAndPage>>> {
-        let it = try!(self.page_iter_iter());
-        Ok(Box::new(it.flat_map(|i| i)))
-    }
-
-    pub fn page_iter_iter(&self) -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndPage>>>> {
-        let cap_root = helpers::data_dir_for("cap", &*self.wiki, &*self.date);
-        let glob = cap_root.clone() + "/*cap.snap";
-        let mut readers:Vec<BoxedIter<WikiResult<MessageAndPage>>> = vec!();
-        for file in try!(::glob::glob(&glob)) {
-            let file = file.unwrap();
-            readers.push(Box::new(PagesReader::new(SnappyFramedDecoder::new(fs::File::open(file).unwrap(), Ignore))));
-        };
-        Ok(Box::new(readers.into_iter()))
-    }
-}
-
-pub struct MessageAndPage {
-    message:capnp::serialize::OwnedSpaceMessageReader
-}
-
-impl MessageAndPage {
-    pub fn as_page_reader(&self) -> WikiResult<Page::Reader> {
-        self.message.get_root().map_err( |e| WikiError::from(e))
-    }
-}
-
-pub struct PagesReader<R:io::Read> {
-    options: capnp::message::ReaderOptions,
-    stream: io::BufReader<R>,
-}
-
-impl <R:io::Read> PagesReader<R> {
-    pub fn new(r:R) -> PagesReader<R> {
-        PagesReader {
-            options:capnp::message::ReaderOptions::new(),
-            stream:io::BufReader::new(r),
-        }
-    }
-}
-
-impl <R:io::Read> Iterator for PagesReader<R> {
-    type Item = WikiResult<MessageAndPage>;
-
-    fn next(&mut self) -> Option<WikiResult<MessageAndPage>> {
-        match serialize_packed::read_message(&mut self.stream, self.options) {
-            Ok(msg) => { Some(Ok(MessageAndPage { message:msg })) },
-            Err(err) => {
-                if err.description().contains("Premature EOF") {
-                    return None
-                } else {
-                    return Some(Err(WikiError::from(err)))
-                }
-            }
-        }
-    }
-}
-
-// PARSE WIKI XML -> CAP SNAP
-
-pub fn capitanize_and_slice<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
-    let mut parser = EventReader::new(input);
-    let mut iterator = parser.events();
-    let mut part_counter = 0;
-    let mut counter = 0u64;
-    let mut path = path::PathBuf::new();
-    let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);
-    while let Some(ref e) = iterator.next() {
-        match e {
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "page" => {
-                if part.is_none() || (counter % 1000 == 0 &&
-                        try!(fs::metadata(&path)).len() > 250_000_000) {
-                    path = path::PathBuf::from(format!("{}-part-{:05}.cap.snap",
-                        output.to_str().unwrap(), part_counter));
-                    part_counter+=1;
-                    part =
-                        Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
-                }
-                let mut message = MallocMessageBuilder::new_default();
-                {
-                    let mut page = message.init_root::<Page::Builder>();
-                    try!(consume_page(&mut iterator, &mut page));
-                }
-                counter += 1;
-                try!(serialize_packed::write_message(&mut part.as_mut().unwrap(), &mut message));
-            },
-            _ => ()
-        }
-    }
-    Ok(())
-}
-
-fn consume_page<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> io::Result<()> {
-    while let Some(ref e) = events.next() {
-        match e {
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "title" => {
-                page.set_title(&*try!(consume_string(events)));
-            }
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "revision" => {
-                try!(consume_revision(events, page));
-            }
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "redirect" => {
-                page.set_redirect(&*try!(consume_string(events)));
-            }
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "id" => {
-                page.set_id(try!(consume_string(events)
-                    .and_then(|s|
-                        s.parse().or_else( |_| {
-                            Err(io::Error::new(io::ErrorKind::Other, "can not parse int (id)"))
-                        })
-                    )
-                ));
-            }
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "ns" => {
-                page.set_ns(try!(consume_string(events)
-                    .and_then(|s|
-                        s.parse().or_else( |_| {
-                            Err(io::Error::new(io::ErrorKind::Other, "can not parse int (ns)"))
-                        })
-                    )
-                ));
-            }
-            &XmlEvent::EndElement { ref name, .. }
-                if name.local_name == "page" => return Ok(()),
-            _ => ()
-        }
-    }
-    Err(io::Error::new(io::ErrorKind::Other, "eof?"))
-}
-
-fn consume_revision<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) -> io::Result<()> {
-    while let Some(ref e) = events.next() {
-        match e {
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "model" => {
-                page.set_model(match &*try!(consume_string(events)) {
-                    "wikitext" => Page::Model::Wikitext,
-                    "wikibase-item" => Page::Model::Wikibaseitem,
-                    "css" => Page::Model::Css,
-                    "json" => Page::Model::Json,
-                    "flow-board" => Page::Model::Flowboard,
-                    "javascript" => Page::Model::Javascript,
-                    "Scribunto" => Page::Model::Scribunto,
-                    m => return Err(io::Error::new(io::ErrorKind::Other, "invalid model : ".to_string() + m))
-                })
-            }
-            &XmlEvent::StartElement { ref name, .. } if name.local_name == "text" => {
-                page.set_text(&*try!(consume_string(events)));
-            }
-            &XmlEvent::EndElement { ref name, .. }
-                if name.local_name == "revision" => return Ok(()),
-            _ => ()
-        }
-    }
-    Err(io::Error::new(io::ErrorKind::Other, "eof?"))
-}
-
-fn consume_string<R:io::Read>(events:&mut Events<R>) -> io::Result<String> {
-    let mut text = String::new();
-    while let Some(ref e) = events.next() {
-        match e {
-            &XmlEvent::Characters(ref content) => text.push_str(&*content),
-            &XmlEvent::Whitespace(ref content) => text.push_str(&*content),
-            &XmlEvent::EndElement { .. } => return Ok(text),
-            _ => ()
-        }
-    }
-    Err(io::Error::new(io::ErrorKind::Other, "EOF?"))
-}
-
-// PARSE JSON DATA DUMP TO CAP
-
-pub fn capitanize_and_slice_wikidata<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
+pub fn process<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
     let input = io::BufReader::new(input);
     let mut path = path::PathBuf::new();
     let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);

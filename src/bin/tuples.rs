@@ -11,9 +11,9 @@ use regex::Regex;
 use simple_parallel::pool::Pool;
 use wolframite::{ WikiResult, BoxedIter };
 use wolframite::wikidata;
-use wolframite::cap::Wiki;
+use wolframite::wiki::Wiki;
 use wolframite::wikidata::EntityHelpers;
-use wolframite::wiki_capnp::page::Which::{Text,Redirect};
+use wolframite::wiki::Page::Which::{Text,Redirect};
 
 fn main() {
     let mut pages = Mutex::new(HashSet::new());

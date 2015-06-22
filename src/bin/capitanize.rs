@@ -10,7 +10,8 @@ extern crate num_cpus;
 
 use wolframite::WikiError;
 use wolframite::helpers;
-use wolframite::cap;
+use wolframite::capitanize_wikidata;
+use wolframite::capitanize_wiki;
 
 use std::io::prelude::*;
 use std::fs;
@@ -18,6 +19,7 @@ use std::fs;
 use std::process;
 
 use std::path;
+
 
 fn main() {
     let args:Vec<String> = std::env::args().collect();
@@ -51,13 +53,13 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     let task = |job:(path::PathBuf,path::PathBuf)| {
         if lang != "wikidata" {
             let input = bzip2::reader::BzDecompressor::new(try!(fs::File::open(&*job.0)));
-            cap::capitanize_and_slice(input, &*job.1)
+            capitanize_wikidata::process(input, &*job.1)
         } else {
             let cmd = try!(process::Command::new("gzcat")
                     .arg("-d").arg(&*job.0)
                     .stdout(process::Stdio::piped())
                     .spawn());
-            try!(cap::capitanize_and_slice_wikidata(cmd.stdout.unwrap(), &*job.1));
+            try!(capitanize_wiki::process(cmd.stdout.unwrap(), &*job.1));
             Ok(())
         }
     };

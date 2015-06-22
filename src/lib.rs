@@ -16,10 +16,11 @@ extern crate tinycdb;
 use std::io;
 use std::error::Error;
 
-pub use capn_wiki::wiki_capnp as wiki_capnp;
 pub mod helpers;
-pub mod cap;
+pub mod wiki;
 pub mod wikidata;
+pub mod capitanize_wikidata;
+pub mod capitanize_wiki;
 
 #[derive(Debug)]
 pub enum WikiError {

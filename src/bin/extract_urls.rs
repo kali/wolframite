@@ -4,7 +4,7 @@ extern crate capnp;
 extern crate snappy_framed;
 extern crate regex;
 
-use wolframite::cap;
+use wolframite::wiki;
 use wolframite::WikiError;
 use wolframite::helpers;
 use std::fs;
@@ -32,9 +32,9 @@ fn run() -> Result<(), WikiError> {
     for entry in try!(::glob::glob(&glob)) {
         let input:fs::File = try!(fs::File::open(try!(entry)));
         let input = SnappyFramedDecoder::new(input, Ignore);
-        let reader = cap::PagesReader::new(input);
+        let reader = wiki::PagesReader::new(input);
         for page in reader {
-            use wolframite::wiki_capnp::page::Which::{Text,Redirect};
+            use wolframite::wiki::Page::Which::{Text,Redirect};
             let page = try!(page);
             let reader = try!(page.as_page_reader());
             match try!(reader.which()) {

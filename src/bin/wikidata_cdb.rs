@@ -11,7 +11,7 @@ use wolframite::helpers;
 use wolframite::wikidata;
 use wolframite::wikidata::EntityHelpers;
 
-pub use wolframite::wiki_capnp::monolingual_text as MongolingualText;
+use wolframite::wikidata::MongolingualText;
 
 pub type WikiResult<T> = Result<T,WikiError>;
 

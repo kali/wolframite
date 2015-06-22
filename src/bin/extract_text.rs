@@ -3,13 +3,15 @@ extern crate glob;
 extern crate capnp;
 extern crate snappy_framed;
 
-use wolframite::cap;
+use snappy_framed::read::SnappyFramedDecoder;
+use snappy_framed::read::CrcMode::Ignore;
+
+use wolframite::wiki;
 use wolframite::WikiError;
 use wolframite::helpers;
 use std::fs;
 
-use snappy_framed::read::SnappyFramedDecoder;
-use snappy_framed::read::CrcMode::Ignore;
+use wolframite::wiki::Page::Which::{Text,Redirect};
 
 fn main() {
     run().unwrap();
@@ -28,9 +30,8 @@ fn run() -> Result<(), WikiError> {
     for entry in try!(::glob::glob(&glob)) {
         let input:fs::File = try!(fs::File::open(try!(entry)));
         let input = SnappyFramedDecoder::new(input, Ignore);
-        let reader = cap::PagesReader::new(input);
+        let reader = wiki::PagesReader::new(input);
         for page in reader {
-            use wolframite::wiki_capnp::page::Which::{Text,Redirect};
             let page = try!(page);
             let reader = try!(page.as_page_reader());
             if try!(reader.get_title()) == args[3] {
