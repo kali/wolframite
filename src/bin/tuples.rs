@@ -3,11 +3,8 @@ extern crate simple_parallel;
 extern crate num_cpus;
 
 use simple_parallel::pool::Pool;
-use wolframite::WikiError;
+use wolframite::WikiResult;
 use wolframite::wikidata;
-//use wolframite::wikidata::EntityHelpers;
-
-pub type WikiResult<T> = Result<T,WikiError>;
 
 fn main() {
     run().unwrap();
@@ -23,8 +20,8 @@ fn run() -> WikiResult<()> {
             } else {
                 0u64
             }
-        }).fold(0,|a,b|a+b);
-        sub
+        });
+        sub.fold(0,|a,b|a+b)
     };
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
     let mut pool = Pool::new(1 + num_cpus::get());
@@ -35,8 +32,3 @@ fn run() -> WikiResult<()> {
     Ok( () )
 }
 
-/*                
-println!("{} {}",
-                    t.1.get_id(),
-                    wd.get_label(&*t.0.get_id()).unwrap_or("no label"));
-*/

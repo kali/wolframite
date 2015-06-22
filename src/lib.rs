@@ -31,6 +31,8 @@ pub enum WikiError {
     Other(String)
 }
 
+pub type WikiResult<T> = Result<T,WikiError>;
+
 impl From<io::Error> for WikiError {
     fn from(err: io::Error) -> WikiError {
         WikiError::Io(err)

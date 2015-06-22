@@ -9,6 +9,7 @@ use helpers;
 use capnp;
 use capnp::message::MessageReader;
 use WikiError;
+use WikiResult;
 
 pub use wiki_capnp::page as Page;
 pub use wiki_capnp::entity as Entity;
@@ -30,7 +31,6 @@ use snappy_framed::read::CrcMode::Ignore;
 
 use tinycdb::Cdb;
 
-pub type WikiResult<T> = Result<T,WikiError>;
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
 pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
