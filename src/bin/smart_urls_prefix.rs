@@ -1,12 +1,22 @@
+#![feature(plugin)]
+#![plugin(docopt_macros)]
+
 extern crate wolframite;
 extern crate simple_parallel;
 extern crate num_cpus;
 extern crate regex;
 extern crate url_aggregator;
 
+extern crate rustc_serialize;
+extern crate docopt;
+
+#[macro_use] extern crate scan_fmt;
+
 use std::collections::{ BTreeSet, HashSet };
 use std::sync::Mutex;
 use regex::Regex;
+
+use docopt::Docopt;
 
 use simple_parallel::pool::Pool;
 use wolframite::{ WikiResult, BoxedIter };
@@ -17,13 +27,22 @@ use wolframite::wiki::Page::Which::{Text,Redirect};
 
 use wolframite::wikidata::EntityRef;
 
+docopt!(Args derive Debug, "
+Usage: smart_urls_prefix <wiki-name> <pair>...
+");
+
 fn main() {
+let args:Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
+    let pairs:Vec<(EntityRef,EntityRef)> = args.arg_pair.iter().map(|p| {
+        let (a,b) = scan_fmt!(p, "P{}Q{}", u32, u32);
+        (EntityRef::P(a.unwrap()), EntityRef::Q(b.unwrap()))
+    }).collect();
     let mut pages = Mutex::new(HashSet::new());
-    grep_entities(&mut pages).unwrap();
-    println!("count: {}", pages.lock().unwrap().len());
+    grep_entities(&*pairs, &mut pages).unwrap();
+    println!("entities: {}", pages.lock().unwrap().len());
     let urls = Mutex::new(BTreeSet::new());
-    grep_urls("enwiki", &*pages.lock().unwrap(), &urls).unwrap();
-    println!("urls: {}", urls.lock().unwrap().len());
+    grep_urls(&*args.arg_wiki_name, &*pages.lock().unwrap(), &urls).unwrap();
+    println!("distinct urls: {}", urls.lock().unwrap().len());
     let result = url_aggregator::aggregate_urls(&*urls.lock().unwrap());
     for u in result {
         println!("{:5} {:5} {}", u.1, u.2, u.0);
@@ -58,7 +77,7 @@ fn grep_urls(wikiname:&str, set:&HashSet<String>, urls:&Mutex<BTreeSet<String>>)
     Ok( () )
 }
 
-fn grep_entities(set: &mut Mutex<HashSet<String>>) -> WikiResult<()> {
+fn grep_entities(pairs:&[(EntityRef,EntityRef)], set: &mut Mutex<HashSet<String>>) -> WikiResult<()> {
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
     let mut pool = Pool::new(1 + num_cpus::get());
     let chunks = try!(wd.entity_iter_iter());
@@ -67,8 +86,7 @@ fn grep_entities(set: &mut Mutex<HashSet<String>>) -> WikiResult<()> {
         for e in it {
             let e = e.unwrap();
             if e.get_relations().unwrap().any(|t:(wikidata::EntityRef,wikidata::EntityRef)|
-               // t.0 == P(106) && t.1 == Q(33999) // actor
-               t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) // movie
+                pairs.iter().any(|p| t == *p)
             ) {
                 if let Some(sitelink) = e.get_sitelink("enwiki").unwrap() {
                     let mut locked = set.lock().unwrap();

@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
 
 [dependencies]
+docopt = "*"
+docopt_macros = "*"
+rustc-serialize = "*"
 hyper = "*"
 glob = "*"
 regex = "*"
@@ -15,7 +18,11 @@ simple_parallel = "0.2"
 num_cpus = "0.2.6"
 serde = "*"
 flate2 = "0.2.7"
+scan_fmt = "*"
 #tinycdb = "*"
+
+#[dependencies.scan_mac]
+#git = "https://github.com/mahkoh/scan"
 
 [dependencies.capn-wiki]
 path = "capn-wiki"
