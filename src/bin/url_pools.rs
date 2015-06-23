@@ -57,18 +57,31 @@ let args:Args = Args::docopt().decode().unwrap_or_else(|e| e.exit());
         }
     }
     grep_pages(&*filters, &mut pages).unwrap();
-    for (label, list) in pages.lock().unwrap().iter() {
-        println!("{}: {} wiki pages", label, list.len());
-    }
     grep_urls(&*args.arg_wiki_name, &*pages.lock().unwrap(), &mut urls).unwrap();
-    for (label, list) in urls.lock().unwrap().iter() {
-        println!("{}: {} distinct urls", label, list.len());
+    let urls = urls.lock().unwrap();
+    let pages = pages.lock().unwrap();
+    for (label, _) in urls.iter() {
+        println!("{}: {} {}", label,
+            pages.get(label).unwrap().len(),
+            urls.get(label).unwrap().len()
+        );
     }
-
-    for (label, list) in urls.lock().unwrap().iter() {
-        let result = url_aggregator::aggregate_urls(&*list);
-        for u in result {
-            println!("{:10} {:5} {:5} {}", label, u.1, u.2, u.0);
+    let mut aggregated = HashMap::new();
+    for (label,urlset) in urls.iter() {
+        aggregated.insert(label, url_aggregator::aggregate_urls(urlset));
+    }
+    let mut in_common = HashMap::new();
+    for (_label,urlset) in aggregated.iter() {
+        for &(ref url,_,_) in urlset.iter() {
+            let previous = *in_common.get(&*url).unwrap_or(&(0usize));
+            in_common.insert(url, previous + 1);
+        }
+    }
+    for (label,urlset) in aggregated.iter() {
+        for &(ref url,_,_) in urlset.iter() {
+            if *in_common.get(url).unwrap() < filters.len() / 2 {
+                println!("{}\t{}\t{}", args.arg_wiki_name, label, url);
+            }
         }
     }
 }

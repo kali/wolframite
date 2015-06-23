@@ -201,6 +201,18 @@ pub trait EntityHelpers {
         let claims = try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries());
         Ok(claims.iter())
     }
+    
+    fn get_claim<'a>(&'a self, prop:EntityRef) ->
+        WikiResult<Option<::capnp::struct_list::Reader<Claim::Reader>>> {
+        let mut claims = try!(self.get_claims());
+        let prop_as_string:String = prop.get_id();
+        let values: Option<::capnp::struct_list::Reader<Claim::Reader>> =
+            claims.find(|e| {
+                let key:&str = e.get_key().get_as().unwrap();
+                key == prop_as_string
+            }).map(|e| e.get_value().get_as().unwrap());
+        Ok(values)
+    }
 
     fn get_relations(&self) ->
             WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>+Send>> {
