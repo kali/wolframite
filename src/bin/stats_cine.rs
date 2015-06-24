@@ -11,68 +11,95 @@ extern crate rustc_serialize;
 use simple_parallel::pool::Pool;
 use wolframite::WikiResult;
 use wolframite::wikidata;
-use wolframite::BoxedIter;
 use wolframite::wikidata::EntityHelpers;
+
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 
 use wolframite::wikidata::EntityRef;
 
 fn main() { count().unwrap() }
 
-type BI<A> = Box<Iterator<Item=A>+Send>;
+type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
-struct MapReduceOp<M, R>
-    where   M: 'static + Sync + Fn(usize) -> usize,
-            R: 'static + Sync + Fn(BI<usize>) -> usize
+struct MapReduceOp<M,R,A,K,V>
+    where   M: 'static + Sync + Fn(A) -> (K,V),
+            R: 'static + Sync + Fn(V,V) -> V,
+            A:Send,
+            K:Send + Eq + ::std::hash::Hash,
+            V:Copy+Send
 {
-    mapper:&'static M,
-    reducer:&'static R
+    mapper: M,
+    reducer: R,
+    _phantom: ::std::marker::PhantomData<A>
 }
 
-impl <M,R> MapReduceOp<M,R>
-    where   M: 'static + Sync + Fn(usize) -> usize,
-            R: 'static + Sync + Fn(BI<usize>) -> usize
+impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
+    where   M: 'static + Sync + Fn(A) -> (K,V),
+            R: 'static + Sync + Fn(V,V) -> V,
+            A:Send,
+            K:Send + Eq + ::std::hash::Hash + Clone,
+            V:Copy+Send
 {
-    fn run(&self, chunks:BI<BI<usize>>) -> usize {
-        let mut pool = Pool::new(1 + num_cpus::get());
-        let mapper = self.mapper;
-        let reducer = self.reducer;
-        let each = move |it:BI<usize>| -> usize {
-            reducer(Box::new(it.map(move |e| { mapper(e) })))
+    fn run(&self, chunks:BI<BI<A>>) -> HashMap<K,V> {
+        let reducer = &self.reducer;
+        let mapper = &self.mapper;
+        let each = |it: BI<A>| -> HashMap<K,V> {
+            let mut aggregates:HashMap<K,V> = HashMap::new();
+            for (k,v) in it.map(|e| { mapper(e) }) {
+                let val = aggregates.entry(k.clone());
+                match val {
+                    Entry::Occupied(prev) => {
+                        let next = reducer(*prev.get(), v);
+                        *(prev.into_mut()) = next;
+                    }
+                    Entry::Vacant(vac) => { vac.insert(v); }
+                };
+            };
+            aggregates
         };
-        let counters:Vec<usize> = unsafe { pool.map(chunks, &each).collect() };
-        (self.reducer)(Box::new(counters.into_iter()))
+        let mut pool = Pool::new(1 + num_cpus::get());
+        let halfway:Vec<HashMap<K,V>> = unsafe { pool.map(chunks, &each).collect() };
+        let mut result:HashMap<K,V> = HashMap::new();
+        for h in halfway.iter() {
+            for (k,v) in h.iter() {
+                let val = result.entry(k.clone());
+                match val {
+                    Entry::Occupied(prev) => {
+                        let next = reducer(*prev.get(), *v);
+                        *(prev.into_mut()) = next;
+                    }
+                    Entry::Vacant(vac) => { vac.insert(*v); }
+                };
+            };
+        };
+        result
     }
 }
 
+fn r(a:usize,b:usize) -> usize { a+b }
 
 #[allow(dead_code)]
 fn count() -> WikiResult<()> {
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
-    let mut pool = Pool::new(1 + num_cpus::get());
-    let chunks = try!(wd.entity_iter_iter());
 
-    fn mapper(e:WikiResult<wikidata::MessageAndEntity>) -> usize {
+
+    fn mapper(e:WikiResult<wikidata::MessageAndEntity>) -> ((), usize) {
         let e = e.unwrap();
-        if e.get_relations().unwrap().any(|t|
-            t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
-            e.get_claim(EntityRef::P(1258)).unwrap().is_some()
-        ) {
-            1
-        } else {
-            0
-        }
+        ((), e.get_relations().unwrap().any(|t|
+            (t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
+            e.get_claim(EntityRef::P(1258)).unwrap().is_some())) as usize
+        )
     }
 
-    let reducer = |it:BoxedIter<usize>| -> usize {
-        it.fold(0, |a,b| a+b)
+    let mro = MapReduceOp {
+        mapper: mapper,
+        reducer: r,
+        _phantom: ::std::marker::PhantomData
     };
 
-    let each = |it:Box<Iterator<Item=WikiResult<wikidata::MessageAndEntity>>+Send>| -> usize {
-        reducer(Box::new(it.map(|e| { mapper(e) })))
-    };
-
-    let counters:Vec<usize> = unsafe { pool.map(chunks, &each).collect() };
-    println!("{}", reducer(Box::new(counters.into_iter())));
+    let r = mro.run(try!(wd.entity_iter_iter()));
+    println!("results: {:?}", r);
     Ok( () )
 }
 
