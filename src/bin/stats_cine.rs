@@ -24,10 +24,10 @@ type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
 struct MapReduceOp<M,R,A,K,V>
     where   M: 'static + Sync + Fn(A) -> (K,V),
-            R: 'static + Sync + Fn(V,V) -> V,
+            R: 'static + Sync + Fn(&V,&V) -> V,
             A:Send,
             K:Send + Eq + ::std::hash::Hash,
-            V:Copy+Send
+            V:Clone+Send
 {
     mapper: M,
     reducer: R,
@@ -36,10 +36,10 @@ struct MapReduceOp<M,R,A,K,V>
 
 impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
     where   M: 'static + Sync + Fn(A) -> (K,V),
-            R: 'static + Sync + Fn(V,V) -> V,
+            R: 'static + Sync + Fn(&V,&V) -> V,
             A:Send,
             K:Send + Eq + ::std::hash::Hash + Clone,
-            V:Copy+Send
+            V:Clone+Send
 {
     fn run(&self, chunks:BI<BI<A>>) -> HashMap<K,V> {
         let reducer = &self.reducer;
@@ -50,7 +50,7 @@ impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
                 let val = aggregates.entry(k.clone());
                 match val {
                     Entry::Occupied(prev) => {
-                        let next = reducer(*prev.get(), v);
+                        let next = reducer(prev.get(), &v);
                         *(prev.into_mut()) = next;
                     }
                     Entry::Vacant(vac) => { vac.insert(v); }
@@ -66,39 +66,44 @@ impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
                 let val = result.entry(k.clone());
                 match val {
                     Entry::Occupied(prev) => {
-                        let next = reducer(*prev.get(), *v);
-                        *(prev.into_mut()) = next;
+                        let next = reducer(prev.get(), v);
+                        *(prev.into_mut()) = next.clone();
                     }
-                    Entry::Vacant(vac) => { vac.insert(*v); }
+                    Entry::Vacant(vac) => { vac.insert(v.clone()); }
                 };
             };
         };
         result
     }
-}
 
-fn r(a:usize,b:usize) -> usize { a+b }
+    fn new_map_reduce(map:M, reduce:R) -> MapReduceOp<M,R,A,K,V> {
+        MapReduceOp {
+            mapper: map, reducer: reduce,
+            _phantom: ::std::marker::PhantomData
+        }
+    }
+
+    fn map_reduce(map:M, reduce:R, chunks:BI<BI<A>>) -> HashMap<K,V> {
+        MapReduceOp::new_map_reduce(map,reduce).run(chunks)
+    }
+}
 
 #[allow(dead_code)]
 fn count() -> WikiResult<()> {
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
 
-
-    fn mapper(e:WikiResult<wikidata::MessageAndEntity>) -> ((), usize) {
-        let e = e.unwrap();
-        ((), e.get_relations().unwrap().any(|t|
-            (t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
-            e.get_claim(EntityRef::P(1258)).unwrap().is_some())) as usize
-        )
-    }
-
-    let mro = MapReduceOp {
-        mapper: mapper,
-        reducer: r,
-        _phantom: ::std::marker::PhantomData
-    };
-
-    let r = mro.run(try!(wd.entity_iter_iter()));
+    let mro = MapReduceOp::new_map_reduce(
+        |e:WikiResult<wikidata::MessageAndEntity>| {
+            let e = e.unwrap();
+            ((), e.get_relations().unwrap().any(|t|
+                (t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
+                e.get_claim(EntityRef::P(1258)).unwrap().is_some())) as usize
+            )
+        },
+        |a:&usize,b:&usize| { a+b }
+    );
+    let biter = try!(wd.entity_iter_iter());
+    let r = mro.run(biter);
     println!("results: {:?}", r);
     Ok( () )
 }
