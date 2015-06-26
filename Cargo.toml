@@ -19,6 +19,8 @@ num_cpus = "0.2.6"
 serde = "*"
 flate2 = "0.2.7"
 scan_fmt = "*"
+pad = "*"
+itertools = "*"
 #tinycdb = "*"
 
 #[dependencies.scan_mac]

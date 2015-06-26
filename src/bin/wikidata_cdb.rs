@@ -26,10 +26,10 @@ fn run() -> WikiResult<()> {
     Cdb::new(path::Path::new(&*filename), |creator| {
         let it = wikidata::entity_iter(&*date).unwrap();
         for (i, message) in it.enumerate() {
-            let message = message.unwrap();
+            let mut message = message.unwrap();
+            let label = message.get_a_label().unwrap();
             creator.add(&*message.get_id().unwrap().as_bytes(),
-                &*message.get_label("en").unwrap().unwrap_or("<no en label>".to_string()).as_bytes()
-            ).unwrap();
+                label.as_bytes()).unwrap();
             if i % 100000 == 0 {
                 println!("done {}", i);
             }

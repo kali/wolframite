@@ -125,7 +125,7 @@ impl <'a> MapWrapper for Map::Reader<'a> {
     }
 }
 
-#[derive(Clone,Copy,PartialEq,Debug)]
+#[derive(Clone,Copy,PartialEq,Debug,Hash,Eq)]
 pub enum EntityRef { Property(u32), Item(u32) }
 
 impl EntityRef {
@@ -157,6 +157,17 @@ impl EntityRef {
     pub fn P(id:u32) -> EntityRef { EntityRef::Property(id) }
 }
 
+impl ::std::fmt::Display for EntityRef {
+    fn fmt(&self, f:&mut ::std::fmt::Formatter) -> Result<(), ::std::fmt::Error> {
+        write!(f, "{}", self.get_id())
+    }
+}
+
+/*
+impl ::std::hash::Hash for EntityRef {
+}
+*/
+
 
 pub struct MessageAndEntity {
     message:capnp::serialize::OwnedSpaceMessageReader
@@ -185,6 +196,21 @@ pub trait EntityHelpers {
         let labels = try!(self.get_labels());
         Ok(try!(labels.get(lang)).map(|s| s.to_string()))
     }
+
+    fn get_a_label(&mut self) -> WikiResult<String> {
+        for l in vec!("en", "fr", "es") {
+            if let Some(label) = try!(self.get_label(l)) {
+                return Ok(label);
+            }
+        }
+        let labels = try!(self.get_labels().unwrap().get_entries());
+        if let Some(entry) = labels.iter().next() {
+            let key:&str = try!(entry.get_key().get_as());
+            return Ok(self.get_label(key).unwrap().unwrap())
+        }
+        self.get_id().map(|s|s.to_string())
+    }
+
 
     fn get_description(&self, lang:&str) -> WikiResult<Option<String>> {
         let descriptions = try!(self.get_descriptions());

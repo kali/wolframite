@@ -5,6 +5,8 @@ extern crate bzip2;
 extern crate xml;
 extern crate snappy_framed;
 extern crate serde;
+extern crate num_cpus;
+extern crate simple_parallel;
 
 extern crate capnp;
 
@@ -21,6 +23,7 @@ pub mod wiki;
 pub mod wikidata;
 pub mod capitanize_wikidata;
 pub mod capitanize_wiki;
+pub mod mapred;
 
 #[derive(Debug)]
 pub enum WikiError {
