@@ -4,20 +4,21 @@ use std::collections::hash_map::Entry;
 
 pub type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
-pub struct MapReduceOp<M,R,A,K,V>
-    where   M: 'static + Sync + Fn(A) -> (K,V),
+pub struct MapReduceOp<'a,M,R,A,K,V>
+    where   M: 'static + Sync + Fn(A) -> BI<'a,(K,V)>,
             R: 'static + Sync + Fn(&V,&V) -> V,
             A:Send,
-            K:Send + Eq + ::std::hash::Hash,
+            K:Send + Eq + ::std::hash::Hash + Clone,
             V:Clone+Send
 {
     mapper: M,
     reducer: R,
-    _phantom: ::std::marker::PhantomData<A>
+    _phantom: ::std::marker::PhantomData<A>,
+    _phantom_2: ::std::marker::PhantomData<&'a usize>,
 }
 
-impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
-    where   M: 'static + Sync + Fn(A) -> (K,V),
+impl <'a,M,R,A,K,V> MapReduceOp<'a,M,R,A,K,V>
+    where   M: 'static + Sync + Fn(A) -> BI<'a,(K,V)>,
             R: 'static + Sync + Fn(&V,&V) -> V,
             A:Send,
             K:Send + Eq + ::std::hash::Hash + Clone,
@@ -28,7 +29,7 @@ impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
         let mapper = &self.mapper;
         let each = |it: BI<A>| -> HashMap<K,V> {
             let mut aggregates:HashMap<K,V> = HashMap::new();
-            for (k,v) in it.map(|e| { mapper(e) }) {
+            for (k,v) in it.flat_map(|e| { mapper(e) }) {
                 let val = aggregates.entry(k.clone());
                 match val {
                     Entry::Occupied(prev) => {
@@ -58,10 +59,11 @@ impl <M,R,A,K,V> MapReduceOp<M,R,A,K,V>
         result
     }
 
-    pub fn new_map_reduce(map:M, reduce:R) -> MapReduceOp<M,R,A,K,V> {
+    pub fn new_map_reduce(map:M, reduce:R) -> MapReduceOp<'a,M,R,A,K,V> {
         MapReduceOp {
             mapper: map, reducer: reduce,
-            _phantom: ::std::marker::PhantomData
+            _phantom: ::std::marker::PhantomData,
+            _phantom_2: ::std::marker::PhantomData
         }
     }
 

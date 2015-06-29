@@ -15,10 +15,11 @@ fn count() -> WikiResult<()> {
     let mro = MapReduceOp::new_map_reduce(
         |e:WikiResult<wikidata::MessageAndEntity>| {
             let e = e.unwrap();
-            ((), e.get_relations().unwrap().any(|t|
-                (t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
-                e.get_claim(EntityRef::P(1258)).unwrap().is_some())) as usize
-            )
+            Box::new(vec!(((),
+                e.get_relations().unwrap().any(|t|
+                    (t.0 == EntityRef::P(31) && t.1 == EntityRef::Q(11424) &&
+                    e.get_claim(EntityRef::P(1258)).unwrap().is_some())) as usize
+                )).into_iter())
         },
         |a:&usize,b:&usize| { a+b }
     );

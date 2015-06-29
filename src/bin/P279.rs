@@ -41,24 +41,19 @@ fn descendency(root:EntityRef, children:&HashMap<EntityRef,Vec<EntityRef>>)
     result
 }
 
-
 fn count() -> WikiResult<()> {
     let mut wd = wikidata::Wikidata::latest_compiled().unwrap();
 
     let mro = MapReduceOp::new_map_reduce(
         |e:WikiResult<wikidata::MessageAndEntity>| {
             let e = e.unwrap();
-            let v:Vec<(EntityRef,EntityRef)> = e.get_relations().unwrap()
+            let v:Vec<((EntityRef,EntityRef),())> = e.get_relations().unwrap()
                 .filter(|t| (t.0 == EntityRef::P(279)))
-                .map(|t| (EntityRef::from_id(e.get_id().unwrap()), t.1) )
+                .map(|t| ((EntityRef::from_id(e.get_id().unwrap()), t.1),()))
                 .collect();
-            ((), v)
+            Box::new(v.into_iter())
         },
-        |a,b| {
-            let mut r = a.clone();
-            r.extend(b.into_iter());
-            r
-        }
+        |_,_| { () }
     );
     let biter = try!(wd.entity_iter_iter());
     let r = mro.run(biter);
@@ -66,7 +61,7 @@ fn count() -> WikiResult<()> {
     let mut parents = HashMap::new();
     let mut children = HashMap::new();
 
-    for pair in r.get(&()).unwrap() {
+    for pair in r.keys() {
         parents.entry(pair.0).or_insert(vec!()).push(pair.1);
         children.entry(pair.1).or_insert(vec!()).push(pair.0);
     }
@@ -106,19 +101,6 @@ fn count() -> WikiResult<()> {
     for root in roots {
         dump_node(0, &mut wd, &mut done, &children, *root);
     }
-/*
-        println!(r#"<a href="{}"><ul>root {} ({}) has {} descendents"#,
-            root.get_id(),
-            root.get_id(),
-            wd.get_label(&*root.get_id()).unwrap_or("no label"),
-            descendency.len());
-        for k in descendency.iter()
-            println!("   - {} ({})",
-                k.get_id(),
-                wd.get_label(&*k.get_id()).unwrap_or("no label"));
-        }
-    }
-*/
     Ok( () )
 }
 
