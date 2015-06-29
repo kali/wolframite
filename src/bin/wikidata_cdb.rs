@@ -8,8 +8,8 @@ use tinycdb::Cdb;
 
 use wolframite::WikiError;
 use wolframite::helpers;
-use wolframite::wikidata;
 use wolframite::wikidata::EntityHelpers;
+use wolframite::wikidata::Wikidata;
 
 pub type WikiResult<T> = Result<T,WikiError>;
 
@@ -24,9 +24,9 @@ fn run() -> WikiResult<()> {
     let filename = target_root.clone()+"/labels";
     let _ = fs::remove_file(target_root.clone()+"/labels");
     Cdb::new(path::Path::new(&*filename), |creator| {
-        let it = wikidata::entity_iter(&*date).unwrap();
+        let it = Wikidata::entity_iter_for_date(&*date).unwrap();
         for (i, message) in it.enumerate() {
-            let mut message = message.unwrap();
+            let message = message.unwrap();
             let label = message.get_a_label().unwrap();
             creator.add(&*message.get_id().unwrap().as_bytes(),
                 label.as_bytes()).unwrap();

@@ -20,6 +20,7 @@ use wolframite::wikidata::EntityRef;
 
 fn main() { count().unwrap() }
 
+#[allow(dead_code)]
 fn descendency(root:EntityRef, children:&HashMap<EntityRef,Vec<EntityRef>>)
         -> HashSet<EntityRef> {
     let mut result:HashSet<EntityRef> = HashSet::new();

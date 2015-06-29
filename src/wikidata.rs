@@ -37,7 +37,7 @@ pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
 pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
 
 pub struct Wikidata {
-    date:String,
+    pub date:String,
     labels:Box<Cdb>
 }
 
@@ -58,18 +58,49 @@ impl Wikidata {
         }
     }
 
-    pub fn get_label(&mut self, key:&str) -> Option<&str> {
-        (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
+    // "static" iterators
+    pub fn cap_files_for_date(date:&str) -> WikiResult<BoxedIter<WikiResult<path::PathBuf>>> {
+        let cap_root = helpers::data_dir_for("cap", "wikidata", date);
+        let glob = cap_root.clone() + "/*cap.snap";
+        Ok(Box::new(try!(::glob::glob(&glob)).map(|f| f.map_err(|e| WikiError::from(e)))))
+    }
+
+    pub fn entity_iter_for_date(date:&str)
+            -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
+        Ok(Box::new(try!(Wikidata::entity_iter_iter_for_date(date)).flat_map(|it| it)))
+    }
+
+    pub fn entity_iter_iter_for_date(date:&str)
+            -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndEntity>>>> {
+        let mut files:Vec<Box<EntityIter>> = vec!();
+        for entry in try!(Wikidata::cap_files_for_date(date)) {
+            files.push(try!(Wikidata::entity_iter_for_file(try!(entry))));
+        }
+        Ok(Box::new(files.into_iter()))
+    }
+
+    pub fn entity_iter_for_file(filename:path::PathBuf)
+        -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
+        Ok(Box::new(EntityReader::for_reader(SnappyFramedDecoder::new(try!(fs::File::open(filename)), Ignore))))
+    }
+
+    // members iterators
+    pub fn cap_files(&self) -> WikiResult<BoxedIter<WikiResult<path::PathBuf>>> {
+        Wikidata::cap_files_for_date(&self.date)
     }
 
     pub fn entity_iter(&self)
             -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
-        entity_iter(&*self.date)
+        Wikidata::entity_iter_for_date(&self.date)
     }
 
     pub fn entity_iter_iter(&self)
             -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndEntity>>>> {
-        entity_iter_iter(&*self.date)
+        Wikidata::entity_iter_iter_for_date(&self.date)
+    }
+
+    pub fn get_label(&mut self, key:&str) -> Option<&str> {
+        (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
     }
 
     pub fn triplets_iter_iter(&self) ->
@@ -87,21 +118,6 @@ impl Wikidata {
         let iter_iter = try!(self.triplets_iter_iter());
         Ok(Box::new(iter_iter.flat_map(|it| it)))
     }
-}
-
-pub fn entity_iter(date:&str) -> WikiResult<Box<EntityIter>> {
-    let reader = try!(entity_iter_iter(date)).flat_map(|it| it);
-    Ok(Box::new(reader))
-}
-
-pub fn entity_iter_iter(date:&str) -> WikiResult<Box<EntityIterIter>> {
-    let cap_root = helpers::data_dir_for("cap", "wikidata", date);
-    let glob = cap_root.clone() + "/*cap.snap";
-    let mut files:Vec<Box<EntityIter>> = vec!();
-    for entry in try!(::glob::glob(&glob)) {
-        files.push(Box::new(EntityReader::for_reader(SnappyFramedDecoder::new(try!(fs::File::open(try!(entry))), Ignore))));
-    }
-    Ok(Box::new(files.into_iter()))
 }
 
 trait MapWrapper {
@@ -197,7 +213,7 @@ pub trait EntityHelpers {
         Ok(try!(labels.get(lang)).map(|s| s.to_string()))
     }
 
-    fn get_a_label(&mut self) -> WikiResult<String> {
+    fn get_a_label(&self) -> WikiResult<String> {
         for l in vec!("en", "fr", "es") {
             if let Some(label) = try!(self.get_label(l)) {
                 return Ok(label);
