@@ -66,7 +66,10 @@ fn download_wikidata(date:Option<String>) {
 
 fn download_wiki(lang:&String, optdate:Option<String>) {
     let mut client = Client::new();
-    let date:String = optdate.or_else( || latest_available(lang, "pages-articles.xml.bz2")).unwrap();
+    let date:String = optdate
+        .or_else( || latest_available(lang, "pages-articles1.xml.bz2"))
+        .or_else( || latest_available(lang, "pages-articles.xml.bz2"))
+        .unwrap();
     let dir = helpers::data_dir_for("download", &*lang, &*date);
     fs::create_dir_all(&*dir).unwrap();
 
