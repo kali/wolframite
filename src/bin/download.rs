@@ -17,7 +17,7 @@ use wolframite::helpers;
 const PREFIX:&'static str = "http://dumps.wikimedia.org";
 
 fn latest_available(lang:&str, item:&str) -> Option<String> {
-    let mut client = Client::new();
+    let client = Client::new();
     let rss_url = format!("{}/{}/latest/{}-latest-{}-rss.xml", PREFIX, lang, lang, item);
     let res = client.get(&rss_url).send().unwrap();
     let buffered = io::BufReader::new(res);
@@ -32,7 +32,7 @@ fn latest_available(lang:&str, item:&str) -> Option<String> {
 }
 
 fn latest_wikidata_available() -> Option<String> {
-    let mut client = Client::new();
+    let client = Client::new();
     let res = client.get("http://dumps.wikimedia.org/other/wikidata/").send().unwrap();
     let buffered = io::BufReader::new(res);
     let re = Regex::new(r#"href="(\d*)\.json\.gz"#).unwrap();
@@ -65,7 +65,7 @@ fn download_wikidata(date:Option<String>) {
 }
 
 fn download_wiki(lang:&String, optdate:Option<String>) {
-    let mut client = Client::new();
+    let client = Client::new();
     let date:String = optdate
         .or_else( || latest_available(lang, "pages-articles1.xml.bz2"))
         .or_else( || latest_available(lang, "pages-articles.xml.bz2"))
@@ -104,7 +104,7 @@ fn download_wiki(lang:&String, optdate:Option<String>) {
 
 fn download_if_smaller(url:String, filename:String) {
     let path = path::Path::new(&*filename);
-    let mut client = Client::new();
+    let client = Client::new();
     let mut res = client.get(&*url).send().unwrap();
     let size:Option<u64>
         = res.headers.get::<ContentLength>().map( |x| **x );

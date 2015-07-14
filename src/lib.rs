@@ -2,6 +2,7 @@
 
 extern crate glob;
 extern crate bzip2;
+extern crate flate2;
 extern crate xml;
 extern crate snappy_framed;
 extern crate serde;
@@ -14,6 +15,7 @@ extern crate capn_wiki;
 extern crate url_aggregator;
 
 extern crate tinycdb;
+extern crate itertools;
 
 use std::io;
 use std::error::Error;

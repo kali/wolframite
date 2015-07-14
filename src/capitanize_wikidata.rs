@@ -4,6 +4,8 @@ use std::io::prelude::*;
 use serde::json;
 
 use snappy_framed::write::SnappyFramedEncoder;
+use flate2;
+use flate2::write::GzEncoder;
 
 use capnp::serialize_packed;
 use capnp::struct_list as StructList;
@@ -38,18 +40,20 @@ macro_rules! println_stderr(
 pub fn process<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> {
     let input = io::BufReader::new(input);
     let mut path = path::PathBuf::new();
-    let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);
+//    let mut part:Option<SnappyFramedEncoder<_>> = None; //open_one(counter);
+    let mut part:Option<GzEncoder<_>> = None;
     let mut part_counter = 0;
     let mut counter = 0;
     for line in input.lines() {
         let mut line = try!(line);
         if part.is_none() || (counter % 1000 == 0 &&
                 try!(fs::metadata(&path)).len() > 250_000_000) {
-            path = path::PathBuf::from(format!("{}-part-{:05}.cap.snap",
+            path = path::PathBuf::from(format!("{}-part-{:05}.cap.gz",
                 output.to_str().unwrap(), part_counter));
             part_counter+=1;
             part =
-                Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
+                //Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
+                Some(GzEncoder::new(fs::File::create(path.as_os_str()).unwrap(), flate2::Compression::Default));
         }
         if line == "[" || line == "]" {
         } else {

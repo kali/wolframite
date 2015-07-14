@@ -27,10 +27,13 @@ pub use capn_wiki::wiki_capnp::quantity as Quantity;
 pub use capn_wiki::wiki_capnp::globe_coordinate as GlobeCoordinate;
 pub use capn_wiki::wiki_capnp::{ EntityType };
 
+use flate2::read::GzDecoder;
+
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode::Ignore;
 
 use tinycdb::Cdb;
+use std::process;
 
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
@@ -61,7 +64,7 @@ impl Wikidata {
     // "static" iterators
     pub fn cap_files_for_date(date:&str) -> WikiResult<BoxedIter<WikiResult<path::PathBuf>>> {
         let cap_root = helpers::data_dir_for("cap", "wikidata", date);
-        let glob = cap_root.clone() + "/*cap.snap";
+        let glob = cap_root.clone() + "/*cap.gz";
         Ok(Box::new(try!(::glob::glob(&glob)).map(|f| f.map_err(|e| WikiError::from(e)))))
     }
 
@@ -81,7 +84,11 @@ impl Wikidata {
 
     pub fn entity_iter_for_file(filename:path::PathBuf)
         -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
-        Ok(Box::new(EntityReader::for_reader(SnappyFramedDecoder::new(try!(fs::File::open(filename)), Ignore))))
+        let cmd = try!(::std::process::Command::new("gzcat")
+            .arg("-d").arg(&*filename)
+            .stdout(::std::process::Stdio::piped())
+            .spawn());
+        Ok(Box::new(EntityReader::for_reader(cmd.stdout.unwrap())))
     }
 
     // members iterators

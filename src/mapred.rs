@@ -1,6 +1,9 @@
-use simple_parallel::pool::Pool;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+
+use simple_parallel::pool::Pool;
+
+use itertools::Itertools;
 
 pub type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
@@ -70,5 +73,16 @@ impl <'a,M,R,A,K,V> MapReduceOp<'a,M,R,A,K,V>
     pub fn map_reduce(map:M, reduce:R, chunks:BI<BI<A>>) -> HashMap<K,V> {
         MapReduceOp::new_map_reduce(map,reduce).run(chunks)
     }
+
 }
 
+pub fn par_foreach<A,F>(chunks:BI<BI<A>>, func:F)
+    where A:Send, F: 'static + Sync + Fn(A) -> () {
+
+    let mapper = &func;
+    let each = |it:BI<A>| -> () {
+        it.map(|e| { mapper(e) }).count();
+    };
+    let mut pool = Pool::new(1 + ::num_cpus::get());
+    let _:Vec<()> = unsafe { pool.map(chunks, &each).collect() };
+}
