@@ -4,7 +4,7 @@ use std::collections::{ BTreeSet, BTreeMap };
 fn lineage(url:&str) -> Vec<String> {
     let mut result = vec!();
     let splits:Vec<&str> = url.split("/").collect();
-    let mut prefix = splits[0..1].connect("/");
+    let mut prefix = splits[0..1].join("/");
     for token in splits[1..].iter() {
         prefix.push('/');
         prefix.push_str(token);

@@ -1,6 +1,7 @@
 #![feature(path_ext)]
 extern crate hyper;
 extern crate regex;
+extern crate time;
 extern crate wolframite;
 
 use std::io;
@@ -49,9 +50,39 @@ fn main() {
     let date = if args.len() >= 3 && args[2].to_string() != "latest" { Some(args[2].to_string()) } else { None };
     if lang == "wikidata" {
         download_wikidata(date)
+    } else if lang == "pagecounts" {
+        download_pagecounts(date)
     } else {
         download_wiki(lang, date)
     }
+}
+
+fn download_pagecounts(date:Option<String>) {
+    let client = Client::new();
+    let date:String = date.unwrap_or_else(|| {
+        let yesterday = time::now_utc() - time::Duration::days(1);
+        time::strftime("%Y%m%d", &yesterday).unwrap()
+    });
+    let index_url = format!("http://dumps.wikimedia.org/other/pagecounts-raw/{}/{}-{}/", &date[0..4], &date[0..4], &date[4..6]);
+    let dir = helpers::data_dir_for("download", "pagecounts", &*date);
+    fs::create_dir_all(&*dir).unwrap();
+    let index = client.get(&index_url).send().unwrap();
+    let buffered = io::BufReader::new(index);
+    let expr = format!(r#"href="(pagecounts-{}-.*\.gz)""#, date);
+    let re = Regex::new(&*expr).unwrap();
+    let mut files:Vec<String> = vec!();
+    for line in buffered.lines() {
+        let line = line.unwrap();
+        for cap in re.captures_iter(&*line) {
+            files.push(cap.at(1).unwrap().to_string());
+        }
+    }
+    for filename in files {
+        let url = index_url.clone() + "/" + &*filename;
+        let local_filename = dir.clone() + "/" + &*filename;
+        download_if_smaller(url, local_filename);
+    }
+    let _ = fs::File::create(format!("{}/ok", &*dir));
 }
 
 fn download_wikidata(date:Option<String>) {

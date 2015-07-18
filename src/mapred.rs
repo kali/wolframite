@@ -3,8 +3,6 @@ use std::collections::hash_map::Entry;
 
 use simple_parallel::pool::Pool;
 
-use itertools::Itertools;
-
 pub type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
 pub struct MapReduceOp<'a,M,R,A,K,V>

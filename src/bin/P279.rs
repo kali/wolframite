@@ -79,7 +79,7 @@ fn count() -> WikiResult<()> {
             children:&HashMap<EntityRef, Vec<EntityRef>>, node:EntityRef) {
         let padding = "".pad_to_width(4*depth);
         let id = node.get_id();
-        let label = wd.get_label(&*id).unwrap_or("no label").to_owned();
+        let label = wd.get_label(&*id).unwrap_or("no label".to_string());
         let full_label = format!("<b>{}</b> {}", &*id, label);
         println!("{}<li>", padding);
         if done.contains(&node) {

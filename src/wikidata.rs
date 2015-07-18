@@ -1,8 +1,9 @@
 use std::io;
-use std::fs;
 use std::path;
 use std::io::prelude::*;
 use std::error::Error;
+
+use std::sync::Mutex;
 
 use helpers;
 
@@ -27,13 +28,7 @@ pub use capn_wiki::wiki_capnp::quantity as Quantity;
 pub use capn_wiki::wiki_capnp::globe_coordinate as GlobeCoordinate;
 pub use capn_wiki::wiki_capnp::{ EntityType };
 
-use flate2::read::GzDecoder;
-
-use snappy_framed::read::SnappyFramedDecoder;
-use snappy_framed::read::CrcMode::Ignore;
-
 use tinycdb::Cdb;
-use std::process;
 
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
 pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
@@ -41,14 +36,15 @@ pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
 
 pub struct Wikidata {
     pub date:String,
-    labels:Box<Cdb>
+    labels:Mutex<Box<Cdb>>
 }
 
 impl Wikidata {
     fn for_date(date:&str) -> WikiResult<Wikidata> {
         let labels_file = helpers::data_dir_for("labels", "wikidata", date) + "/labels";
         let labels = try!(Cdb::open(path::Path::new(&*labels_file)));
-        Ok(Wikidata { date: date.to_string(), labels:labels })
+        Ok(Wikidata {   date: date.to_string(),
+                        labels:Mutex::new(labels) })
     }
 
     pub fn latest_compiled() -> WikiResult<Wikidata> {
@@ -106,8 +102,9 @@ impl Wikidata {
         Wikidata::entity_iter_iter_for_date(&self.date)
     }
 
-    pub fn get_label(&mut self, key:&str) -> Option<&str> {
-        (*self.labels).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap())
+    pub fn get_label(&self, key:&str) -> Option<String> {
+        let mut lock = self.labels.lock().unwrap();
+        (*lock).find(key.as_bytes()).map(|x| ::std::str::from_utf8(x).unwrap().to_string())
     }
 
     pub fn triplets_iter_iter(&self) ->

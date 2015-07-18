@@ -3,7 +3,6 @@ use std::io::prelude::*;
 
 use serde::json;
 
-use snappy_framed::write::SnappyFramedEncoder;
 use flate2;
 use flate2::write::GzEncoder;
 

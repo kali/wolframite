@@ -23,11 +23,11 @@ fn count() -> WikiResult<()> {
                      || t == (EntityRef::P(31), EntityRef::Q(15632617))
  );
                 if fiction {
-                    let mut wd2 = wikidata::Wikidata::latest_compiled().unwrap();
+                    let wd2 = wikidata::Wikidata::latest_compiled().unwrap();
                     let work = e.get_relations().unwrap()
                        .find(|t| t.0 == EntityRef::P(1441))
                        .and_then(|t| wd2.get_label(&*t.1.get_id()));
-                    println!("{} ({})", e.get_a_label().unwrap(), work.unwrap_or("unknown work"));
+                    println!("{} ({})", e.get_a_label().unwrap(), &*work.unwrap_or("unknown work".to_string()));
                 } else {
                     println!("{}, REAL", e.get_a_label().unwrap());
                 }
