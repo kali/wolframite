@@ -13,7 +13,7 @@ fn count() -> WikiResult<()> {
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
 
     let mro = MapReduceOp::new_map_reduce(
-        |e:WikiResult<wikidata::MessageAndEntity>| {
+        |e:WikiResult<wikidata::EntityMessage>| {
             let e = e.unwrap();
             Box::new(vec!(((),
                 e.get_relations().unwrap().any(|t|

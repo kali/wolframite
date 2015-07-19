@@ -122,7 +122,7 @@ fn grep_pages(filters:&[Filter], pages: &mut Mutex<Pages>) -> WikiResult<()> {
     let mut pool = Pool::new(1 + num_cpus::get());
     let chunks = try!(wd.entity_iter_iter());
 
-    let each = |it:Box<Iterator<Item=WikiResult<wikidata::MessageAndEntity>>+Send>| -> () {
+    let each = |it:Box<Iterator<Item=WikiResult<wikidata::EntityMessage>>+Send>| -> () {
         for e in it {
             let e = e.unwrap();
             for filter in filters {

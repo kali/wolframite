@@ -31,7 +31,7 @@ pub use capn_wiki::wiki_capnp::{ EntityType };
 use tinycdb::Cdb;
 
 pub type WikidataTriplet = (EntityRef,EntityRef,EntityRef);
-pub type EntityIter = Iterator<Item=WikiResult<MessageAndEntity>>+Send;
+pub type EntityIter = Iterator<Item=WikiResult<EntityMessage>>+Send;
 pub type EntityIterIter = Iterator<Item=Box<EntityIter>>+Send;
 
 pub struct Wikidata {
@@ -65,12 +65,12 @@ impl Wikidata {
     }
 
     pub fn entity_iter_for_date(date:&str)
-            -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
+            -> WikiResult<BoxedIter<WikiResult<EntityMessage>>> {
         Ok(Box::new(try!(Wikidata::entity_iter_iter_for_date(date)).flat_map(|it| it)))
     }
 
     pub fn entity_iter_iter_for_date(date:&str)
-            -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndEntity>>>> {
+            -> WikiResult<BoxedIter<BoxedIter<WikiResult<EntityMessage>>>> {
         let mut files:Vec<Box<EntityIter>> = vec!();
         for entry in try!(Wikidata::cap_files_for_date(date)) {
             files.push(try!(Wikidata::entity_iter_for_file(try!(entry))));
@@ -79,7 +79,7 @@ impl Wikidata {
     }
 
     pub fn entity_iter_for_file(filename:path::PathBuf)
-        -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
+        -> WikiResult<BoxedIter<WikiResult<EntityMessage>>> {
         let cmd = try!(::std::process::Command::new("gzcat")
             .arg("-d").arg(&*filename)
             .stdout(::std::process::Stdio::piped())
@@ -93,12 +93,12 @@ impl Wikidata {
     }
 
     pub fn entity_iter(&self)
-            -> WikiResult<BoxedIter<WikiResult<MessageAndEntity>>> {
+            -> WikiResult<BoxedIter<WikiResult<EntityMessage>>> {
         Wikidata::entity_iter_for_date(&self.date)
     }
 
     pub fn entity_iter_iter(&self)
-            -> WikiResult<BoxedIter<BoxedIter<WikiResult<MessageAndEntity>>>> {
+            -> WikiResult<BoxedIter<BoxedIter<WikiResult<EntityMessage>>>> {
         Wikidata::entity_iter_iter_for_date(&self.date)
     }
 
@@ -112,7 +112,7 @@ impl Wikidata {
         Ok(Box::new(try!(self.entity_iter_iter()).map(
             |entity_iter:Box<EntityIter>| -> Box<Iterator<Item=WikidataTriplet>+Send> {
                 Box::new(entity_iter.flat_map(
-                    |e:WikiResult<MessageAndEntity>| e.unwrap().triplets().unwrap()
+                    |e:WikiResult<EntityMessage>| e.unwrap().triplets().unwrap()
                 ))
             }
         )))
@@ -189,7 +189,7 @@ impl ::std::hash::Hash for EntityRef {
 */
 
 
-pub struct MessageAndEntity {
+pub struct EntityMessage {
     message:capnp::serialize::OwnedSpaceMessageReader
 }
 
@@ -299,7 +299,7 @@ pub trait EntityHelpers {
 }
 
 
-impl EntityHelpers for MessageAndEntity {
+impl EntityHelpers for EntityMessage {
     fn as_entity_reader(&self) -> WikiResult<Entity::Reader> {
         self.message.get_root().map_err( |e| WikiError::from(e))
     }
@@ -320,11 +320,11 @@ impl <R:io::Read> EntityReader<R> {
 }
 
 impl <R:io::Read> Iterator for EntityReader<R> {
-    type Item = WikiResult<MessageAndEntity>;
+    type Item = WikiResult<EntityMessage>;
 
-    fn next(&mut self) -> Option<WikiResult<MessageAndEntity>> {
+    fn next(&mut self) -> Option<WikiResult<EntityMessage>> {
         match capnp::serialize_packed::read_message(&mut self.stream, self.options) {
-            Ok(msg) => { Some(Ok(MessageAndEntity { message:msg })) },
+            Ok(msg) => { Some(Ok(EntityMessage { message:msg })) },
             Err(err) => {
                 if err.description().contains("Premature EOF") {
                     return None

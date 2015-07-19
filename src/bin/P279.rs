@@ -43,10 +43,10 @@ fn descendency(root:EntityRef, children:&HashMap<EntityRef,Vec<EntityRef>>)
 }
 
 fn count() -> WikiResult<()> {
-    let mut wd = wikidata::Wikidata::latest_compiled().unwrap();
+    let wd = wikidata::Wikidata::latest_compiled().unwrap();
 
     let mro = MapReduceOp::new_map_reduce(
-        |e:WikiResult<wikidata::MessageAndEntity>| {
+        |e:WikiResult<wikidata::EntityMessage>| {
             let e = e.unwrap();
             let v:Vec<((EntityRef,EntityRef),())> = e.get_relations().unwrap()
                 .filter(|t| (t.0 == EntityRef::P(279)))
@@ -75,7 +75,7 @@ fn count() -> WikiResult<()> {
             }
         }
     };
-    fn dump_node(depth:usize, wd:&mut wikidata::Wikidata, done:&mut HashSet<EntityRef>,
+    fn dump_node(depth:usize, wd:&wikidata::Wikidata, done:&mut HashSet<EntityRef>,
             children:&HashMap<EntityRef, Vec<EntityRef>>, node:EntityRef) {
         let padding = "".pad_to_width(4*depth);
         let id = node.get_id();
@@ -100,7 +100,7 @@ fn count() -> WikiResult<()> {
 
     let mut done = HashSet::new();
     for root in roots {
-        dump_node(0, &mut wd, &mut done, &children, *root);
+        dump_node(0, &wd, &mut done, &children, *root);
     }
     Ok( () )
 }

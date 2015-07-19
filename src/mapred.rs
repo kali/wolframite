@@ -6,8 +6,8 @@ use simple_parallel::pool::Pool;
 pub type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
 
 pub struct MapReduceOp<'a,M,R,A,K,V>
-    where   M: 'static + Sync + Fn(A) -> BI<'a,(K,V)>,
-            R: 'static + Sync + Fn(&V,&V) -> V,
+    where   M:Sync + Fn(A) -> BI<'a,(K,V)>,
+            R:Sync + Fn(&V,&V) -> V,
             A:Send,
             K:Send + Eq + ::std::hash::Hash + Clone,
             V:Clone+Send
@@ -19,8 +19,8 @@ pub struct MapReduceOp<'a,M,R,A,K,V>
 }
 
 impl <'a,M,R,A,K,V> MapReduceOp<'a,M,R,A,K,V>
-    where   M: 'static + Sync + Fn(A) -> BI<'a,(K,V)>,
-            R: 'static + Sync + Fn(&V,&V) -> V,
+    where   M:Sync + Fn(A) -> BI<'a,(K,V)>,
+            R:Sync + Fn(&V,&V) -> V,
             A:Send,
             K:Send + Eq + ::std::hash::Hash + Clone,
             V:Clone+Send
@@ -74,8 +74,8 @@ impl <'a,M,R,A,K,V> MapReduceOp<'a,M,R,A,K,V>
 
 }
 
-pub fn par_foreach<A,F>(chunks:BI<BI<A>>, func:F)
-    where A:Send, F: 'static + Sync + Fn(A) -> () {
+pub fn par_foreach<A,F>(chunks:BI<BI<A>>, func:&F)
+    where A:Send, F: Sync + Fn(A) -> () {
 
     let mapper = &func;
     let each = |it:BI<A>| -> () {

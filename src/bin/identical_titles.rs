@@ -12,14 +12,14 @@ fn count() -> WikiResult<()> {
     let wd = wikidata::Wikidata::latest_compiled().unwrap();
 
     let mro = MapReduceOp::new_map_reduce(
-        |e:WikiResult<wikidata::MessageAndEntity>| {
+        |e:WikiResult<wikidata::EntityMessage>| {
             let e = e.unwrap();
             let en = e.get_label("en");
             let de = e.get_label("de");
             let identical:bool = en.is_ok() && de.is_ok() && de.unwrap() == en.unwrap();
             Box::new(vec!((identical, 1)).into_iter())
         },
-        |a:&usize,b:&usize| { a+b }
+        |a,b| { a+b }
     );
     let biter = try!(wd.entity_iter_iter());
     let r = mro.run(biter);

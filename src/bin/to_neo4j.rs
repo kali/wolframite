@@ -16,14 +16,6 @@ use wolframite::wikidata::Wikidata;
 use wolframite::helpers;
 use wolframite::wikidata::EntityHelpers;
 
-/*
-use wolframite::wikidata::EntityIter;
-use wolframite::wikidata;
-use wolframite::mapred::MapReduceOp;
-use wolframite::wikidata::EntityRef;
-use itertools::Itertools;
-*/
-
 fn main() { run().unwrap() }
 
 fn run() -> WikiResult<()> {
