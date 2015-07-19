@@ -28,8 +28,8 @@ fn count() -> WikiResult<()> {
         },
         |a,b| { *a + *b }
     );
-    let biter = try!(wd.entity_iter_iter());
-    let r = mro.run(biter);
+    let itit = try!(wd.entity_iter_iter());
+    let r = mro.run(itit);
 
     r.iter().foreach(|entry| {
         println!("{}\t{}\t{}", entry.1, entry.0.get_id(), &*wd.get_label(&entry.0.get_id()).unwrap_or("no label".to_string()));

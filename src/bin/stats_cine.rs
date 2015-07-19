@@ -23,8 +23,8 @@ fn count() -> WikiResult<()> {
         },
         |a:&usize,b:&usize| { a+b }
     );
-    let biter = try!(wd.entity_iter_iter());
-    let r = mro.run(biter);
+    let itit = try!(wd.entity_iter_iter());
+    let r = mro.run(itit);
     println!("results: {:?}", r);
     Ok( () )
 }

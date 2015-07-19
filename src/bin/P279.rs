@@ -56,8 +56,8 @@ fn count() -> WikiResult<()> {
         },
         |_,_| { () }
     );
-    let biter = try!(wd.entity_iter_iter());
-    let r = mro.run(biter);
+    let itit = try!(wd.entity_iter_iter());
+    let r = mro.run(itit);
 
     let mut parents = HashMap::new();
     let mut children = HashMap::new();
