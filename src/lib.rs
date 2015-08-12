@@ -6,6 +6,7 @@ extern crate flate2;
 extern crate xml;
 extern crate snappy_framed;
 extern crate serde;
+extern crate serde_json;
 extern crate num_cpus;
 extern crate simple_parallel;
 
@@ -69,8 +70,8 @@ impl From<capnp::NotInSchema> for WikiError {
     }
 }
 
-impl From<serde::json::error::Error> for WikiError {
-    fn from(err: serde::json::error::Error) -> WikiError {
+impl From<serde_json::error::Error> for WikiError {
+    fn from(err: serde_json::error::Error) -> WikiError {
         WikiError::Other(format!("Json decode error: {}", err.description()))
     }
 }

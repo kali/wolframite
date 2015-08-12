@@ -7,7 +7,7 @@ use std::io::prelude::*;
 use snappy_framed::write::SnappyFramedEncoder;
 
 use capnp::serialize_packed;
-use capnp::{MessageBuilder, MallocMessageBuilder};
+use capnp::message::Builder;
 
 use WikiResult;
 
@@ -31,7 +31,7 @@ pub fn process<R:io::Read>(input:R, output:&path::Path) -> WikiResult<()> {
                     part =
                         Some(SnappyFramedEncoder::new(fs::File::create(path.as_os_str()).unwrap()).unwrap());
                 }
-                let mut message = MallocMessageBuilder::new_default();
+                let mut message = Builder::new_default();
                 {
                     let mut page = message.init_root::<Page::Builder>();
                     try!(consume_page(&mut iterator, &mut page));

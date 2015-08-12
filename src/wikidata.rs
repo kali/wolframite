@@ -8,7 +8,8 @@ use std::sync::Mutex;
 use helpers;
 
 use capnp;
-use capnp::message::MessageReader;
+use capnp::message::Reader;
+use capnp::serialize::OwnedSegments;
 use WikiError;
 use WikiResult;
 use BoxedIter;
@@ -190,7 +191,7 @@ impl ::std::hash::Hash for EntityRef {
 
 
 pub struct EntityMessage {
-    message:capnp::serialize::OwnedSpaceMessageReader
+    message:Reader<OwnedSegments>
 }
 
 pub trait EntityHelpers {
@@ -243,16 +244,16 @@ pub trait EntityHelpers {
     }
 
     fn get_claims<'a>(&'a self) ->
-        WikiResult<capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Reader<'a>>, MapEntry::Reader<'a>>> {
+        WikiResult<capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Owned>, MapEntry::Reader<'a>>> {
         let claims = try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries());
         Ok(claims.iter())
     }
-    
+
     fn get_claim<'a>(&'a self, prop:EntityRef) ->
-        WikiResult<Option<::capnp::struct_list::Reader<Claim::Reader>>> {
+        WikiResult<Option<::capnp::struct_list::Reader<Claim::Owned>>> {
         let mut claims = try!(self.get_claims());
         let prop_as_string:String = prop.get_id();
-        let values: Option<::capnp::struct_list::Reader<Claim::Reader>> =
+        let values: Option<::capnp::struct_list::Reader<Claim::Owned>> =
             claims.find(|e| {
                 let key:&str = e.get_key().get_as().unwrap();
                 key == prop_as_string
@@ -264,7 +265,7 @@ pub trait EntityHelpers {
             WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>+Send>> {
         let mut result = vec!();
         for claim in try!(self.get_claims()) {
-            let values: ::capnp::struct_list::Reader<Claim::Reader> =
+            let values: ::capnp::struct_list::Reader<Claim::Owned> =
                 try!(claim.get_value().get_as());
             for value in values.iter() {
                 let snak = try!(value.get_mainsnak());

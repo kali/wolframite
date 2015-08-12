@@ -1,14 +1,14 @@
 use std::{ io, fs, path };
 use std::io::prelude::*;
 
-use serde::json;
+use serde_json;
 
 use flate2;
 use flate2::write::GzEncoder;
 
 use capnp::serialize_packed;
 use capnp::struct_list as StructList;
-use capnp::{MessageBuilder, MallocMessageBuilder};
+use capnp::message::{ Allocator, Builder};
 
 pub use capn_wiki::wiki_capnp::page as Page;
 pub use capn_wiki::wiki_capnp::entity as Entity;
@@ -60,20 +60,20 @@ pub fn process<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> 
             if line.pop() == Some('}') {
                 line.push('}')
             }
-            let value:json::Value = try!(json::from_str(&*line).or_else(|e| {
+            let value:serde_json::value::Value = try!( serde_json::de::from_str(&*line).or_else(|e| {
                 println_stderr!("##### JSON ERROR @{} #####", counter);
                 println_stderr!("{:?}", e);
                 try!(io::copy(&mut io::Cursor::new(line.as_bytes()), &mut io::stderr()));
                 Err(e)
             }));
-            let mut message = MallocMessageBuilder::new_default();
+            let mut message = Builder::new_default();
             {
                 let job = consume_item(&value, &mut message);
                 try!(job.or_else(|e| {
                     println!("error handler");
                     println_stderr!("##### ERROR @{} #####", counter);
                     println_stderr!("{:?}", e);
-                    try!(json::ser::to_writer_pretty(&mut io::stderr(),&value));
+                    try!(serde_json::ser::to_writer_pretty(&mut io::stderr(),&value));
                     return Err(e);
                 }));
             }
@@ -87,7 +87,7 @@ pub fn process<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> 
     Ok( () )
 }
 
-fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result<(),WikiError> {
+fn consume_item<T:Allocator>(value:&serde_json::value::Value, message:&mut Builder<T>) -> Result<(),WikiError> {
     let mut entity = message.init_root::<Entity::Builder>();
     let id = try!(value.find("id").ok_or("id expected"));
     entity.set_id(try!(id.as_string().ok_or("id is expected to be a string")));
@@ -115,7 +115,7 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
     try!(value.find("aliases").map(|vs| {
         build_map(vs, entity.borrow().init_aliases(), |v,b| {
             let array = try!(v.as_array().ok_or("expect an array"));
-            let mut list_builder:StructList::Builder<MongolingualText::Builder> =
+            let mut list_builder:StructList::Builder<MongolingualText::Owned> =
                 b.init_as_sized(array.len() as u32);
             for (i,item) in array.iter().enumerate() {
                 try!(build_monolingual_text(item, list_builder.borrow().get(i as u32)));
@@ -126,7 +126,7 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
     try!(value.find("claims").map(|vs| {
         build_map(vs, entity.borrow().init_claims(), |v,b| {
             let array = try!(v.as_array().ok_or("expect an array"));
-            let mut list_builder:StructList::Builder<Claim::Builder> =
+            let mut list_builder:StructList::Builder<Claim::Owned> =
                 b.init_as_sized(array.len() as u32);
             for (i,item) in array.iter().enumerate() {
                 try!(build_claim(item, list_builder.borrow().get(i as u32)));
@@ -137,9 +137,9 @@ fn consume_item(value:&json::Value, message:&mut MallocMessageBuilder) -> Result
     Ok( () )
 }
 
-fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F)
+fn build_map<F>(map_of_maps:&serde_json::value::Value, mut map:Map::Builder, inner:F)
                 -> WikiResult<()>
-            where F: Fn(&json::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
+            where F: Fn(&serde_json::value::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
     let map_of_maps = try!(map_of_maps.as_object().ok_or("map of monolingual text is expected as json object"));
     map.borrow().init_entries(map_of_maps.len() as u32);
     let mut entries = try!(map.borrow().get_entries());
@@ -155,7 +155,7 @@ fn build_map<F>(map_of_maps:&json::Value, mut map:Map::Builder, inner:F)
 }
 
 
-fn build_monolingual_text(json:&json::Value, mut builder:MongolingualText::Builder) -> WikiResult<()> {
+fn build_monolingual_text(json:&serde_json::value::Value, mut builder:MongolingualText::Builder) -> WikiResult<()> {
     json.find("language").and_then(|v| v.as_string()).map(|v| builder.set_language(v));
     if json.find("removed").is_some() {
         builder.set_removed( () );
@@ -165,13 +165,13 @@ fn build_monolingual_text(json:&json::Value, mut builder:MongolingualText::Build
     Ok( () )
 }
 
-fn build_sitelink(json:&json::Value, mut builder:SiteLink::Builder) -> WikiResult<()> {
+fn build_sitelink(json:&serde_json::value::Value, mut builder:SiteLink::Builder) -> WikiResult<()> {
     json.find("site").and_then(|v| v.as_string()).map(|v| builder.set_site(v));
     json.find("title").and_then(|v| v.as_string()).map(|v| builder.set_title(v));
     Ok( () )
 }
 
-fn build_claim(json:&json::Value, mut builder:Claim::Builder) -> WikiResult<()> {
+fn build_claim(json:&serde_json::value::Value, mut builder:Claim::Builder) -> WikiResult<()> {
     json.find("id").and_then(|v| v.as_string()).map(|v| builder.set_id(v));
     match json.find("type").and_then(|v| v.as_string()) {
         Some("statement") => builder.set_type(Claim::Type::Statement),
@@ -193,7 +193,7 @@ fn build_claim(json:&json::Value, mut builder:Claim::Builder) -> WikiResult<()> 
     Ok( () )
 }
 
-fn build_snak(json:&json::Value, mut builder:Snak::Builder) -> WikiResult<()> {
+fn build_snak(json:&serde_json::value::Value, mut builder:Snak::Builder) -> WikiResult<()> {
     json.find("property").and_then(|v| v.as_string()).map(|v| builder.set_property(v));
     json.find("datatype").and_then(|v| v.as_string()).map(|v| builder.set_datatype(v));
     let snaktype = try!(json.find("snaktype").and_then(|v|v.as_string()).ok_or("expect a snaktype"));
@@ -209,7 +209,7 @@ fn build_snak(json:&json::Value, mut builder:Snak::Builder) -> WikiResult<()> {
     Ok( () )
 }
 
-fn build_data_value(json:&json::Value, mut builder:DataValue::Builder) -> WikiResult<()> {
+fn build_data_value(json:&serde_json::value::Value, mut builder:DataValue::Builder) -> WikiResult<()> {
     let t = try!(json.find("type").and_then(|v| v.as_string()).ok_or("expect a type"));
     let v = try!(json.find("value").ok_or("expect a value"));
     match t {
@@ -228,7 +228,7 @@ fn build_data_value(json:&json::Value, mut builder:DataValue::Builder) -> WikiRe
     Ok( () )
 }
 
-fn build_wikibase_entity_ref(json:&json::Value, mut builder:WikibaseEntityRef::Builder) -> WikiResult<()> {
+fn build_wikibase_entity_ref(json:&serde_json::value::Value, mut builder:WikibaseEntityRef::Builder) -> WikiResult<()> {
     let typ = try!(json.find("entity-type").and_then(|v| v.as_string()).ok_or("expect an entity-type"));
     builder.set_type(try!(build_entity_type(typ)));
     builder.set_id(try!(
@@ -236,7 +236,7 @@ fn build_wikibase_entity_ref(json:&json::Value, mut builder:WikibaseEntityRef::B
     Ok( () )
 }
 
-fn build_time(json:&json::Value, mut builder:Time::Builder) -> WikiResult<()> {
+fn build_time(json:&serde_json::value::Value, mut builder:Time::Builder) -> WikiResult<()> {
     json.find("time").and_then(|v| v.as_string()).map(|v| builder.set_time(v));
     json.find("calendarmodel").and_then(|v| v.as_string()).map(|v| builder.set_calendarmodel(v));
     json.find("precision").and_then(|v| v.as_u64()).map(|v| builder.set_precision(v as u8));
@@ -246,7 +246,7 @@ fn build_time(json:&json::Value, mut builder:Time::Builder) -> WikiResult<()> {
     Ok( () )
 }
 
-fn build_quantity(json:&json::Value, mut builder:Quantity::Builder) -> WikiResult<()> {
+fn build_quantity(json:&serde_json::value::Value, mut builder:Quantity::Builder) -> WikiResult<()> {
     json.find("amount").and_then(|v| v.as_f64()).map(|v| builder.set_amount(v));
     json.find("lowerBound").and_then(|v| v.as_f64()).map(|v| builder.set_lower_bound(v));
     json.find("upperBound").and_then(|v| v.as_f64()).map(|v| builder.set_upper_bound(v));
@@ -254,7 +254,7 @@ fn build_quantity(json:&json::Value, mut builder:Quantity::Builder) -> WikiResul
     Ok( () )
 }
 
-fn build_globecoordinate(json:&json::Value, mut builder:GlobeCoordinate::Builder)
+fn build_globecoordinate(json:&serde_json::value::Value, mut builder:GlobeCoordinate::Builder)
         -> WikiResult<()> {
     json.find("latitude").and_then(|v| v.as_f64()).map(|v| builder.set_latitude(v));
     json.find("longitude").and_then(|v| v.as_f64()).map(|v| builder.set_longitude(v));

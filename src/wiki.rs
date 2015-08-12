@@ -13,8 +13,8 @@ use snappy_framed::read::CrcMode::Ignore;
 
 use capnp;
 use capnp::serialize_packed;
-use capnp::{MessageBuilder};
-use capnp::message::MessageReader;
+use capnp::serialize::OwnedSegments;
+use capnp::message::{ Reader, Builder };
 
 pub use capn_wiki::wiki_capnp::page as Page;
 
@@ -51,7 +51,7 @@ impl Wiki {
 }
 
 pub struct MessageAndPage {
-    message:capnp::serialize::OwnedSpaceMessageReader
+    message:Reader<OwnedSegments>
 }
 
 impl MessageAndPage {
