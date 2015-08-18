@@ -7,7 +7,7 @@ use flate2;
 use flate2::write::GzEncoder;
 
 use capnp::serialize_packed;
-use capnp::struct_list as StructList;
+use capnp::{ traits, text };
 use capnp::message::{ Allocator, Builder};
 
 pub use capn_wiki::wiki_capnp::page as Page;
@@ -98,25 +98,20 @@ fn consume_item<T:Allocator>(value:&serde_json::value::Value, message:&mut Build
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
     };
     try!(value.find("labels").map(|labels| {
-        build_map(labels, entity.borrow().init_labels(),
-            |v,b| build_monolingual_text(v, b.init_as())
-        )
+        build_map_to_mono(labels, entity.borrow().init_labels())
     }).unwrap_or(Ok(())));
     try!(value.find("descriptions").map(|vs| {
-        build_map(vs, entity.borrow().init_descriptions(),
-            |v,b| build_monolingual_text(v, b.init_as())
-        )
+        build_map_to_mono(vs, entity.borrow().init_descriptions())
     }).unwrap_or(Ok(())));
     try!(value.find("sitelinks").map(|vs| {
-        build_map(vs, entity.borrow().init_sitelinks(),
-            |v,b| build_sitelink(v, b.init_as())
+        build_map(vs, entity.borrow().init_sitelinks(), |json,entry|
+            build_sitelink(json, try!(entry.get_value()))
         )
     }).unwrap_or(Ok(())));
     try!(value.find("aliases").map(|vs| {
-        build_map(vs, entity.borrow().init_aliases(), |v,b| {
+        build_map(vs, entity.borrow().init_aliases(), |v,e| {
             let array = try!(v.as_array().ok_or("expect an array"));
-            let mut list_builder:StructList::Builder<MongolingualText::Owned> =
-                b.init_as_sized(array.len() as u32);
+            let mut list_builder = e.initn_value(array.len() as u32);
             for (i,item) in array.iter().enumerate() {
                 try!(build_monolingual_text(item, list_builder.borrow().get(i as u32)));
             };
@@ -124,10 +119,9 @@ fn consume_item<T:Allocator>(value:&serde_json::value::Value, message:&mut Build
         })
     }).unwrap_or(Ok(())));
     try!(value.find("claims").map(|vs| {
-        build_map(vs, entity.borrow().init_claims(), |v,b| {
+        build_map(vs, entity.borrow().init_claims(), |v,e| {
             let array = try!(v.as_array().ok_or("expect an array"));
-            let mut list_builder:StructList::Builder<Claim::Owned> =
-                b.init_as_sized(array.len() as u32);
+            let mut list_builder = e.initn_value(array.len() as u32);
             for (i,item) in array.iter().enumerate() {
                 try!(build_claim(item, list_builder.borrow().get(i as u32)));
             };
@@ -137,23 +131,27 @@ fn consume_item<T:Allocator>(value:&serde_json::value::Value, message:&mut Build
     Ok( () )
 }
 
-fn build_map<F>(map_of_maps:&serde_json::value::Value, mut map:Map::Builder, inner:F)
-                -> WikiResult<()>
-            where F: Fn(&serde_json::value::Value, ::capnp::any_pointer::Builder) -> WikiResult<()> {
+fn build_map_to_mono(map_of_maps:&serde_json::value::Value,
+        map:Map::Builder<text::Owned,MongolingualText::Owned>) -> WikiResult<()> {
+    build_map(map_of_maps, map, |json, entry| build_monolingual_text(json, try!(entry.get_value())))
+}
+
+fn build_map<F,V>(map_of_maps:&serde_json::value::Value, mut map:Map::Builder<text::Owned,V>, f:F) -> WikiResult<()>
+        where   V: for<'x> traits::Owned<'x>,
+                F: Fn(&serde_json::value::Value, MapEntry::Builder<text::Owned,V>) -> WikiResult<()>
+    {
     let map_of_maps = try!(map_of_maps.as_object().ok_or("map of monolingual text is expected as json object"));
     map.borrow().init_entries(map_of_maps.len() as u32);
     let mut entries = try!(map.borrow().get_entries());
     {
         for (i, (l, v)) in map_of_maps.iter().enumerate() {
             let mut entry = entries.borrow().get(i as u32);
-            entry.borrow().init_key();
-            try!(entry.borrow().get_key().set_as(&**l));
-            try!(inner(v, entry.get_value()));
+            entry.borrow().set_key(&**l).unwrap();
+            try!(f(v, entry));
         }
     }
     Ok( () )
 }
-
 
 fn build_monolingual_text(json:&serde_json::value::Value, mut builder:MongolingualText::Builder) -> WikiResult<()> {
     json.find("language").and_then(|v| v.as_string()).map(|v| builder.set_language(v));

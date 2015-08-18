@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use helpers;
 
 use capnp;
+use capnp::{ text, traits };
 use capnp::message::Reader;
 use capnp::serialize::OwnedSegments;
 use WikiError;
@@ -18,7 +19,7 @@ pub use capn_wiki::wiki_capnp::page as Page;
 pub use capn_wiki::wiki_capnp::entity as Entity;
 pub use capn_wiki::wiki_capnp::map as Map;
 pub use capn_wiki::wiki_capnp::map::entry as MapEntry;
-pub use capn_wiki::wiki_capnp::monolingual_text as MongolingualText;
+pub use capn_wiki::wiki_capnp::monolingual_text as MonolingualText;
 pub use capn_wiki::wiki_capnp::site_link as SiteLink;
 pub use capn_wiki::wiki_capnp::claim as Claim;
 pub use capn_wiki::wiki_capnp::snak as Snak;
@@ -125,26 +126,59 @@ impl Wikidata {
     }
 }
 
-trait MapWrapper {
-    fn get(&self, key:&str) -> WikiResult<Option<&str>>;
+/*
+trait MapWrapper<V> {
+    fn get(&self, key:&str) -> WikiResult<Option<V>>;
 }
 
-impl <'a> MapWrapper for Map::Reader<'a> {
-    fn get(&self, key:&str) -> WikiResult<Option<&str>> {
+impl <'a> MapWrapper<MonolingualText::Reader<'a>> for Map::Reader<'a,text::Owned,MonolingualText::Owned> {
+
+    fn get(&self, key:&str) -> WikiResult<Option<MonolingualText::Reader<'a>>> {
         let entries = try!(self.get_entries());
         for entry in entries.iter() {
-            let this_key:&str = try!(entry.get_key().get_as());
+            let this_key:&str = try!(entry.get_key());
             if this_key == key {
-                let value:MongolingualText::Reader = try!(entry.get_value().get_as());
+                let value = try!(entry.get_value());
+                return Ok(Some(value));
+/*
+                let value:MonolingualText::Reader = try!(entry.get_value());
                 match try!(value.which()) {
-                    MongolingualText::Value(t) => return Ok(Some(try!(t))),
-                    MongolingualText::Removed(_) => return Ok(None)
+                    MonolingualText::Value(t) => return Ok(Some(try!(t))),
+                    MonolingualText::Removed(_) => return Ok(None)
                 }
+*/
             }
         }
         Ok(None)
     }
 }
+*/
+
+/*
+impl <'a,V> MapWrapper<V> for Map::Reader<'a,text::Owned,V>
+        where V: for<'x> traits::Owned<'x>
+    {
+
+    fn get(&self, key:&str) -> WikiResult<Option<V>> {
+        let entries = try!(self.get_entries());
+        for entry in entries.iter() {
+            let this_key:&str = try!(entry.get_key());
+            if this_key == key {
+                let value = try!(entry.get_value());
+                return Ok(Some(value));
+/*
+                let value:MonolingualText::Reader = try!(entry.get_value());
+                match try!(value.which()) {
+                    MonolingualText::Value(t) => return Ok(Some(try!(t))),
+                    MonolingualText::Removed(_) => return Ok(None)
+                }
+*/
+            }
+        }
+        Ok(None)
+    }
+}
+*/
 
 #[derive(Clone,Copy,PartialEq,Debug,Hash,Eq)]
 pub enum EntityRef { Property(u32), Item(u32) }
@@ -201,21 +235,47 @@ pub trait EntityHelpers {
         Ok(try!(try!(self.as_entity_reader()).get_id()))
     }
 
-    fn get_labels(&self) -> WikiResult<Map::Reader> {
+    fn get_labels(&self) -> WikiResult<Map::Reader<text::Owned,MonolingualText::Owned>> {
         Ok(try!(try!(self.as_entity_reader()).get_labels()))
     }
 
-    fn get_sitelinks(&self) -> WikiResult<Map::Reader> {
+/*
+    fn get_sitelinks(&self) -> WikiResult<Map::Reader<text::Owned,SiteLink::Owned>> {
         Ok(try!(try!(self.as_entity_reader()).get_sitelinks()))
     }
-
-    fn get_descriptions(&self) -> WikiResult<Map::Reader> {
+*/
+    fn get_descriptions(&self) -> WikiResult<Map::Reader<text::Owned,MonolingualText::Owned>> {
         Ok(try!(try!(self.as_entity_reader()).get_descriptions()))
     }
 
+    fn lookup<'a,V>(map:Map::Reader<'a,text::Owned,V>, key:text::Reader) ->
+        WikiResult<Option<MapEntry::Reader<'a,text::Owned,V>>>
+            where V:for<'x> traits::Owned<'x>
+    {
+        for item in try!(map.get_entries()).iter() {
+            if try!(item.borrow().get_key()) == key {
+                return Ok(Some(item))
+            }
+        }
+        Ok(None)
+    }
+
+    fn extract_monolingual_value(poly:Map::Reader<text::Owned,MonolingualText::Owned>, lang:&str) -> WikiResult<Option<String>>
+    {
+        for item in try!(poly.get_entries()).iter() {
+            if try!(item.borrow().get_key()) == lang {
+                let mono = try!(item.get_value());
+                match try!(mono.which()) {
+                    MonolingualText::Value(t) => return Ok(Some(try!(t).to_owned())),
+                    _ => ()
+                }
+            }
+        }
+        return Ok(None)
+    }
+
     fn get_label(&self, lang:&str) -> WikiResult<Option<String>> {
-        let labels = try!(self.get_labels());
-        Ok(try!(labels.get(lang)).map(|s| s.to_string()))
+        Self::extract_monolingual_value(try!(self.get_labels()), lang)
     }
 
     fn get_a_label(&self) -> WikiResult<String> {
@@ -226,7 +286,7 @@ pub trait EntityHelpers {
         }
         let labels = try!(self.get_labels().unwrap().get_entries());
         if let Some(entry) = labels.iter().next() {
-            let key:&str = try!(entry.get_key().get_as());
+            let key:&str = try!(entry.get_key());
             return Ok(self.get_label(key).unwrap().unwrap())
         }
         self.get_id().map(|s|s.to_string())
@@ -234,40 +294,43 @@ pub trait EntityHelpers {
 
 
     fn get_description(&self, lang:&str) -> WikiResult<Option<String>> {
-        let descriptions = try!(self.get_descriptions());
-        Ok(try!(descriptions.get(lang)).map(|s| s.to_string()))
+        Self::extract_monolingual_value(try!(self.get_descriptions()), lang)
     }
 
-    fn get_sitelink(&self, lang:&str) -> WikiResult<Option<String>> {
-        let sitelinks = try!(self.get_sitelinks());
-        Ok(try!(sitelinks.get(lang)).map(|s| s.to_string()))
+    fn get_sitelink(&self, lang:&str) -> WikiResult<Option<SiteLink::Reader>> {
+        let sitelinks = try!(try!(self.as_entity_reader()).get_sitelinks());
+        let sitelink_item = try!(Self::lookup(sitelinks, lang));
+        if sitelink_item.is_none() {
+            return Ok(None)
+        }
+        let value = try!(sitelink_item.unwrap().get_value());
+        Ok(Some(value))
     }
-
+/*
     fn get_claims<'a>(&'a self) ->
         WikiResult<capnp::traits::ListIter<::capnp::struct_list::Reader<'a, MapEntry::Owned>, MapEntry::Reader<'a>>> {
         let claims = try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries());
         Ok(claims.iter())
     }
+*/
 
     fn get_claim<'a>(&'a self, prop:EntityRef) ->
         WikiResult<Option<::capnp::struct_list::Reader<Claim::Owned>>> {
-        let mut claims = try!(self.get_claims());
+        let claims = try!(try!(self.as_entity_reader()).get_claims());
         let prop_as_string:String = prop.get_id();
-        let values: Option<::capnp::struct_list::Reader<Claim::Owned>> =
-            claims.find(|e| {
-                let key:&str = e.get_key().get_as().unwrap();
-                key == prop_as_string
-            }).map(|e| e.get_value().get_as().unwrap());
-        Ok(values)
+        let claim_entry = try!(Self::lookup(claims, &*prop_as_string));
+        if claim_entry.is_none() {
+            return Ok(None)
+        }
+        let value = try!(claim_entry.unwrap().get_value());
+        Ok(Some(value))
     }
 
     fn get_relations(&self) ->
             WikiResult<Box<Iterator<Item=(EntityRef,EntityRef)>+Send>> {
         let mut result = vec!();
-        for claim in try!(self.get_claims()) {
-            let values: ::capnp::struct_list::Reader<Claim::Owned> =
-                try!(claim.get_value().get_as());
-            for value in values.iter() {
+        for claim in try!(try!(try!(self.as_entity_reader()).get_claims()).get_entries()).iter() {
+            for value in try!(claim.get_value()).iter() {
                 let snak = try!(value.get_mainsnak());
                 match try!(snak.which()) {
                     Snak::Somevalue(_) => (),
@@ -296,7 +359,6 @@ pub trait EntityHelpers {
             .map(move |pair| (my_ref, pair.0, pair.1));
         Ok(Box::new(it))
     }
-
 }
 
 

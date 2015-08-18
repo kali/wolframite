@@ -131,7 +131,7 @@ fn grep_pages(filters:&[Filter], pages: &mut Mutex<Pages>) -> WikiResult<()> {
                 ) {
                     if let Some(sitelink) = e.get_sitelink("enwiki").unwrap() {
                         let mut locked = pages.lock().unwrap();
-                        locked.get_mut(&*filter.0).unwrap().insert(sitelink);
+                        locked.get_mut(&*filter.0).unwrap().insert(sitelink.get_title().unwrap().to_owned());
                     }
                 }
             }

@@ -14,7 +14,7 @@ use snappy_framed::read::CrcMode::Ignore;
 use capnp;
 use capnp::serialize_packed;
 use capnp::serialize::OwnedSegments;
-use capnp::message::{ Reader, Builder };
+use capnp::message::Reader;
 
 pub use capn_wiki::wiki_capnp::page as Page;
 
