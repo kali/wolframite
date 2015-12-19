@@ -20,8 +20,8 @@ fn count() -> WikiResult<()> {
             if relations.any(|t| t == (EntityRef::P(39),EntityRef::Q(11696))) {
                 let mut relations = e.get_relations().unwrap();
                 let fiction = relations.any(|t| t == (EntityRef::P(31), EntityRef::Q(95074))
-                     || t == (EntityRef::P(31), EntityRef::Q(15632617))
- );
+                    || t == (EntityRef::P(31), EntityRef::Q(15632617))
+                );
                 if fiction {
                     let work = e.get_relations().unwrap()
                        .find(|t| t.0 == EntityRef::P(1441))

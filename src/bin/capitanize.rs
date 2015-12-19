@@ -1,5 +1,3 @@
-#![feature(path_ext)]
-
 extern crate wolframite;
 extern crate glob;
 extern crate bzip2;
@@ -13,7 +11,6 @@ use wolframite::helpers;
 use wolframite::capitanize_wikidata;
 use wolframite::capitanize_wiki;
 
-use std::io::prelude::*;
 use std::fs;
 
 use std::process;

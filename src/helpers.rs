@@ -7,7 +7,8 @@ use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode;
 
 use xml::reader::EventReader;
-use xml::reader::events::*;
+use xml::reader::Events;
+use xml::reader::XmlEvent;
 
 use WikiError;
 
@@ -34,7 +35,7 @@ pub struct Page {
 }
 
 pub struct PagesFromXml<R : Read> {
-    parser:EventReader<R>
+    parser:Events<R>
 }
 
 impl <R : Read> Iterator for PagesFromXml<R> {
@@ -47,36 +48,36 @@ impl <R : Read> Iterator for PagesFromXml<R> {
         };
         let mut state:State = State::Nowhere;
         let mut page = Page { title: String::new(), text: String::new() };
-        for e in self.parser.events() {
+        while let Some(ref e) = self.parser.next() {
             match e {
-                XmlEvent::StartElement { ref name, .. }
+                &Ok(XmlEvent::StartElement { ref name, .. })
                     if state == State::Nowhere && name.local_name == "title" => {
                     state = State::InTitle;
                 }
-                XmlEvent::StartElement { ref name, .. }
+                &Ok(XmlEvent::StartElement { ref name, .. })
                     if state == State::Nowhere && name.local_name == "text" => {
                     state = State::InText;
                 }
-                XmlEvent::EndElement { ref name }
+                &Ok(XmlEvent::EndElement { ref name })
                     if state == State::InTitle && name.local_name == "title" => {
                     state = State::Nowhere;
                 }
-                XmlEvent::EndElement { ref name }
+                &Ok(XmlEvent::EndElement { ref name })
                     if state == State::InText && name.local_name == "text" => {
                     state = State::Nowhere;
                 }
-                XmlEvent::EndElement { ref name } if name.local_name == "page" => {
+                &Ok(XmlEvent::EndElement { ref name }) if name.local_name == "page" => {
                     return Some(Ok(page))
                 }
-                XmlEvent::Characters(ref content) if state == State::InTitle =>
+                &Ok(XmlEvent::Characters(ref content)) if state == State::InTitle =>
                     page.title.push_str(&*content),
-                XmlEvent::Characters(ref content) if state == State::InText =>
+                &Ok(XmlEvent::Characters(ref content)) if state == State::InText =>
                     page.text.push_str(&*content),
-                XmlEvent::Whitespace(ref content) if state == State::InTitle =>
+                &Ok(XmlEvent::Whitespace(ref content)) if state == State::InTitle =>
                     page.title.push_str(&*content),
-                XmlEvent::Whitespace(ref content) if state == State::InText =>
+                &Ok(XmlEvent::Whitespace(ref content)) if state == State::InText =>
                     page.text.push_str(&*content),
-                XmlEvent::Error(e) => {
+                &Err(ref e) => {
                     println!("Error: {}", e);
                     break;
                 }
@@ -89,7 +90,7 @@ impl <R : Read> Iterator for PagesFromXml<R> {
 
 pub fn pages_from_xml<R:Read>(read:R) -> WikiResult<PagesFromXml<R>> {
     let parser = EventReader::new(read);
-    Ok(PagesFromXml{ parser:parser })
+    Ok(PagesFromXml{ parser:parser.into_iter() })
 }
 
 pub struct ReadChain<T:Read> {

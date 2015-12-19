@@ -1,4 +1,3 @@
-#![feature(path_ext)]
 extern crate hyper;
 extern crate regex;
 extern crate time;
