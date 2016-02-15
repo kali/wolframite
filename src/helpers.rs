@@ -2,7 +2,7 @@ use std::io;
 use std::io::prelude::*;
 use std::fs;
 
-use bzip2::reader::BzDecompressor;
+use bzip2::read::BzDecoder;
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode;
 
@@ -118,12 +118,12 @@ impl<T:Read> Read for ReadChain<T> {
     }
 }
 
-pub fn bzcat(lang:&str, date:&str) -> Result<ReadChain<BzDecompressor<fs::File>>, WikiError> {
+pub fn bzcat(lang:&str, date:&str) -> Result<ReadChain<BzDecoder<fs::File>>, WikiError> {
     let glob = data_dir_for("download", lang, date) + "/*.bz2";
-    let decompressors:Result<Vec<BzDecompressor<fs::File>>,WikiError> =
+    let decompressors:Result<Vec<BzDecoder<fs::File>>,WikiError> =
         try!(::glob::glob(&glob)).map(|entry| {
             let file = try!(fs::File::open(try!(entry)));
-            Ok(BzDecompressor::new(file))
+            Ok(BzDecoder::new(file))
     }).collect();
     let decompressors = try!(decompressors);
     Ok(ReadChain::new(decompressors))

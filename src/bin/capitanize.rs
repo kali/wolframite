@@ -49,7 +49,7 @@ pub fn capitanize(lang:&str, date:&str) -> Result<(), WikiError> {
     let mut pool = simple_parallel::Pool::new(1+num_cpus::get());
     let task = |job:(path::PathBuf,path::PathBuf)| {
         if lang != "wikidata" {
-            let input = bzip2::reader::BzDecompressor::new(try!(fs::File::open(&*job.0)));
+            let input = bzip2::read::BzDecoder::new(try!(fs::File::open(&*job.0)));
             capitanize_wiki::process(input, &*job.1)
         } else {
             let cmd = try!(process::Command::new("gzcat")
