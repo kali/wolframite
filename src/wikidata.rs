@@ -185,11 +185,11 @@ pub enum EntityRef { Property(u32), Item(u32) }
 
 impl EntityRef {
     pub fn from_id(id:&str) -> EntityRef {
-        let (first,rest) = id.slice_shift_char().unwrap();
-        let i:u32 = rest.parse().unwrap();
+        let first = id.as_bytes()[0];
+        let i:u32 = ::std::str::from_utf8(&id.as_bytes()[1..]).unwrap().parse().unwrap();
         match first {
-            'P' => EntityRef::Property(i),
-            'Q' => EntityRef::Item(i),
+            b'P' => EntityRef::Property(i),
+            b'Q' => EntityRef::Item(i),
             _   => panic!("id must start by P or Q")
         }
     }

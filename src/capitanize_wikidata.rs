@@ -90,9 +90,9 @@ pub fn process<R:io::Read>(input:R, output:&path::Path) -> Result<(),WikiError> 
 fn consume_item<T:Allocator>(value:&serde_json::value::Value, message:&mut Builder<T>) -> Result<(),WikiError> {
     let mut entity = message.init_root::<Entity::Builder>();
     let id = try!(value.find("id").ok_or("id expected"));
-    entity.set_id(try!(id.as_string().ok_or("id is expected to be a string")));
+    entity.set_id(try!(id.as_str().ok_or("id is expected to be a string")));
     let typ = try!(value.find("type").ok_or("type field expected"));
-    match typ.as_string() {
+    match typ.as_str() {
         Some("item") => entity.set_type(EntityType::Item),
         Some("property") => entity.set_type(EntityType::Property),
         _ => return Err(WikiError::Other(format!("type expected to be a string (\"item\", or \"property\") got: {:?}", typ))),
@@ -154,31 +154,31 @@ fn build_map<F,V>(map_of_maps:&serde_json::value::Value, mut map:Map::Builder<te
 }
 
 fn build_monolingual_text(json:&serde_json::value::Value, mut builder:MongolingualText::Builder) -> WikiResult<()> {
-    json.find("language").and_then(|v| v.as_string()).map(|v| builder.set_language(v));
+    json.find("language").and_then(|v| v.as_str()).map(|v| builder.set_language(v));
     if json.find("removed").is_some() {
         builder.set_removed( () );
     } else {
-        json.find("value").and_then(|v| v.as_string()).map(|v| builder.set_value(v));
+        json.find("value").and_then(|v| v.as_str()).map(|v| builder.set_value(v));
     }
     Ok( () )
 }
 
 fn build_sitelink(json:&serde_json::value::Value, mut builder:SiteLink::Builder) -> WikiResult<()> {
-    json.find("site").and_then(|v| v.as_string()).map(|v| builder.set_site(v));
-    json.find("title").and_then(|v| v.as_string()).map(|v| builder.set_title(v));
+    json.find("site").and_then(|v| v.as_str()).map(|v| builder.set_site(v));
+    json.find("title").and_then(|v| v.as_str()).map(|v| builder.set_title(v));
     Ok( () )
 }
 
 fn build_claim(json:&serde_json::value::Value, mut builder:Claim::Builder) -> WikiResult<()> {
-    json.find("id").and_then(|v| v.as_string()).map(|v| builder.set_id(v));
-    match json.find("type").and_then(|v| v.as_string()) {
+    json.find("id").and_then(|v| v.as_str()).map(|v| builder.set_id(v));
+    match json.find("type").and_then(|v| v.as_str()) {
         Some("statement") => builder.set_type(Claim::Type::Statement),
         Some("claim") => builder.set_type(Claim::Type::Claim),
         Some(e) =>
             return Err(WikiError::from(format!("unexpected value for claim type {}", e))),
         _ => ()
     }
-    match json.find("rank").and_then(|v| v.as_string()) {
+    match json.find("rank").and_then(|v| v.as_str()) {
         Some("preferred") => builder.set_rank(Claim::Rank::Preferred),
         Some("normal") => builder.set_rank(Claim::Rank::Normal),
         Some("deprecated") => builder.set_rank(Claim::Rank::Deprecated),
@@ -192,9 +192,9 @@ fn build_claim(json:&serde_json::value::Value, mut builder:Claim::Builder) -> Wi
 }
 
 fn build_snak(json:&serde_json::value::Value, mut builder:Snak::Builder) -> WikiResult<()> {
-    json.find("property").and_then(|v| v.as_string()).map(|v| builder.set_property(v));
-    json.find("datatype").and_then(|v| v.as_string()).map(|v| builder.set_datatype(v));
-    let snaktype = try!(json.find("snaktype").and_then(|v|v.as_string()).ok_or("expect a snaktype"));
+    json.find("property").and_then(|v| v.as_str()).map(|v| builder.set_property(v));
+    json.find("datatype").and_then(|v| v.as_str()).map(|v| builder.set_datatype(v));
+    let snaktype = try!(json.find("snaktype").and_then(|v|v.as_str()).ok_or("expect a snaktype"));
     match snaktype {
         "value" => {
             let value = try!(json.find("datavalue").ok_or("no datatype in snak"));
@@ -208,11 +208,11 @@ fn build_snak(json:&serde_json::value::Value, mut builder:Snak::Builder) -> Wiki
 }
 
 fn build_data_value(json:&serde_json::value::Value, mut builder:DataValue::Builder) -> WikiResult<()> {
-    let t = try!(json.find("type").and_then(|v| v.as_string()).ok_or("expect a type"));
+    let t = try!(json.find("type").and_then(|v| v.as_str()).ok_or("expect a type"));
     let v = try!(json.find("value").ok_or("expect a value"));
     match t {
         "string" => builder.set_string(
-            try!(v.as_string().ok_or("expected a string"))),
+            try!(v.as_str().ok_or("expected a string"))),
         "wikibase-entityid" =>
             try!(build_wikibase_entity_ref(v, builder.init_wikibaseentityid())),
         "time" => try!(build_time(v, builder.init_time())),
@@ -227,7 +227,7 @@ fn build_data_value(json:&serde_json::value::Value, mut builder:DataValue::Build
 }
 
 fn build_wikibase_entity_ref(json:&serde_json::value::Value, mut builder:WikibaseEntityRef::Builder) -> WikiResult<()> {
-    let typ = try!(json.find("entity-type").and_then(|v| v.as_string()).ok_or("expect an entity-type"));
+    let typ = try!(json.find("entity-type").and_then(|v| v.as_str()).ok_or("expect an entity-type"));
     builder.set_type(try!(build_entity_type(typ)));
     builder.set_id(try!(
         json.find("numeric-id").and_then(|v| v.as_u64()).ok_or("expect a numeric id")) as u32);
@@ -235,8 +235,8 @@ fn build_wikibase_entity_ref(json:&serde_json::value::Value, mut builder:Wikibas
 }
 
 fn build_time(json:&serde_json::value::Value, mut builder:Time::Builder) -> WikiResult<()> {
-    json.find("time").and_then(|v| v.as_string()).map(|v| builder.set_time(v));
-    json.find("calendarmodel").and_then(|v| v.as_string()).map(|v| builder.set_calendarmodel(v));
+    json.find("time").and_then(|v| v.as_str()).map(|v| builder.set_time(v));
+    json.find("calendarmodel").and_then(|v| v.as_str()).map(|v| builder.set_calendarmodel(v));
     json.find("precision").and_then(|v| v.as_u64()).map(|v| builder.set_precision(v as u8));
     json.find("timezone").and_then(|v| v.as_u64()).map(|v| builder.set_timezone(v as i16));
     json.find("before").and_then(|v| v.as_u64()).map(|v| builder.set_before(v as u64));
@@ -248,7 +248,7 @@ fn build_quantity(json:&serde_json::value::Value, mut builder:Quantity::Builder)
     json.find("amount").and_then(|v| v.as_f64()).map(|v| builder.set_amount(v));
     json.find("lowerBound").and_then(|v| v.as_f64()).map(|v| builder.set_lower_bound(v));
     json.find("upperBound").and_then(|v| v.as_f64()).map(|v| builder.set_upper_bound(v));
-    json.find("unit").and_then(|v| v.as_string()).map(|v| builder.set_unit(v));
+    json.find("unit").and_then(|v| v.as_str()).map(|v| builder.set_unit(v));
     Ok( () )
 }
 
@@ -258,7 +258,7 @@ fn build_globecoordinate(json:&serde_json::value::Value, mut builder:GlobeCoordi
     json.find("longitude").and_then(|v| v.as_f64()).map(|v| builder.set_longitude(v));
     json.find("altitude").and_then(|v| v.as_f64()).map(|v| builder.set_altitude(v));
     json.find("precision").and_then(|v| v.as_f64()).map(|v| builder.set_precision(v));
-    json.find("globe").and_then(|v| v.as_string()).map(|v| builder.set_globe(v));
+    json.find("globe").and_then(|v| v.as_str()).map(|v| builder.set_globe(v));
     Ok( () )
 }
 
