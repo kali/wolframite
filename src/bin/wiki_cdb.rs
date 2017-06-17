@@ -20,7 +20,7 @@ use wolframite::WikiError;
 use wolframite::helpers;
 
 use byteorder::ByteOrder;
-use wolframite::wiki::Page::Which::{Text,Redirect};
+use wolframite::wiki::Page::Which::{Text, Redirect};
 
 pub type WikiResult<T> = Result<T, WikiError>;
 
@@ -29,7 +29,7 @@ fn main() {
         (@arg wiki: -w --wiki +takes_value "Pick a wiki")
         (@arg date: -d --date +takes_value "Pick a date")
     )
-        .get_matches();
+            .get_matches();
     let wiki = matches.value_of("wiki").unwrap_or("enwiki");
     let date: String = helpers::latest("cap", wiki).unwrap().unwrap();
     run(wiki, &*date).unwrap();
@@ -53,40 +53,44 @@ fn run(wiki: &str, date: &str) -> WikiResult<()> {
     println!("created");
 
     Cdb::new(&*cdb.join("title"), |title| {
-            Cdb::new(&*cdb.join("text"), |text| {
-                    Cdb::new(&*cdb.join("ix_title"), |ix_title| {
-                            for entry in ::glob::glob(cap_path.join("*.cap.snap")
-                                    .to_str()
-                                    .unwrap())
-                                .unwrap() {
-                                let entry = entry.unwrap();
-                                println!("loop: {:?}", entry);
-                                let input: fs::File = fs::File::open(entry).unwrap();
-                                let input = SnappyFramedDecoder::new(input, Ignore);
-                                let reader = wiki::PagesReader::new(input);
+        Cdb::new(&*cdb.join("text"), |text| {
+            Cdb::new(&*cdb.join("ix_title"),
+                     |ix_title| for entry in ::glob::glob(cap_path
+                                                              .join("*.cap.snap")
+                                                              .to_str()
+                                                              .unwrap())
+                                 .unwrap() {
+                         let entry = entry.unwrap();
+                         println!("loop: {:?}", entry);
+                         let input: fs::File = fs::File::open(entry).unwrap();
+                         let input = SnappyFramedDecoder::new(input, Ignore);
+                         let reader = wiki::PagesReader::new(input);
 
-                                for page in reader {
-                                    let page = page.unwrap();
-                                    let reader = page.as_page_reader().unwrap();
-                                    let mut id = [0u8; 8];
-                                    byteorder::LittleEndian::write_u64(&mut id, reader.get_id());
-                                    let tit = reader.get_title().unwrap();
-                                    title.add(&id, tit.as_bytes()).unwrap();
-                                    ix_title.add(normalize_title(tit).as_bytes(), &id).unwrap();
-                                    match reader.which().unwrap() {
-                                         Text(t) =>
-                                            text.add(&id, t.unwrap().as_bytes()),
-                                         Redirect(red) =>
-                                            text.add(&id, format!("REDIRECT {}", red.unwrap()).as_bytes()),
-                                    }.unwrap();
-                                }
-                            }
-                        })
-                        .unwrap();
-                })
-                .unwrap();
+                         for page in reader {
+                             let page = page.unwrap();
+                             let reader = page.as_page_reader().unwrap();
+                             let mut id = [0u8; 8];
+                             byteorder::LittleEndian::write_u64(&mut id, reader.get_id());
+                             let tit = reader.get_title().unwrap();
+                             title.add(&id, tit.as_bytes()).unwrap();
+                             ix_title
+                                 .add(normalize_title(tit).as_bytes(), &id)
+                                 .unwrap();
+                             match reader.which().unwrap() {
+                                     Text(t) => text.add(&id, t.unwrap().as_bytes()),
+                                     Redirect(red) => {
+                                         text.add(&id,
+                                                  format!("REDIRECT {}", red.unwrap()).as_bytes())
+                                     }
+                                 }
+                                 .unwrap();
+                         }
+                     })
+                    .unwrap();
         })
-        .unwrap();
+                .unwrap();
+    })
+            .unwrap();
     // let it = Wikidata::entity_iter_for_date(&*date).unwrap();
     // for (i, message) in it.enumerate() {
     // let message = message.unwrap();

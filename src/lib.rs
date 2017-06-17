@@ -37,5 +37,4 @@ error_chain! {
     }
 }
 
-pub type BoxedIter<Item> = Box<Iterator<Item=Item>+Send>;
-
+pub type BoxedIter<Item> = Box<Iterator<Item = Item> + Send>;

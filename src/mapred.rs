@@ -3,14 +3,14 @@ use std::collections::hash_map::Entry;
 
 use simple_parallel::pool::Pool;
 
-pub type BI<'a,A> = Box<Iterator<Item=A> + Send + 'a>;
+pub type BI<'a, A> = Box<Iterator<Item = A> + Send + 'a>;
 
-pub struct MapReduceOp<'a,M,R,A,K,V>
-    where   M:Sync + Fn(A) -> BI<'a,(K,V)>,
-            R:Sync + Fn(&V,&V) -> V,
-            A:Send,
-            K:Send + Eq + ::std::hash::Hash + Clone,
-            V:Clone+Send
+pub struct MapReduceOp<'a, M, R, A, K, V>
+    where M: Sync + Fn(A) -> BI<'a, (K, V)>,
+          R: Sync + Fn(&V, &V) -> V,
+          A: Send,
+          K: Send + Eq + ::std::hash::Hash + Clone,
+          V: Clone + Send
 {
     mapper: M,
     reducer: R,
@@ -18,69 +18,73 @@ pub struct MapReduceOp<'a,M,R,A,K,V>
     _phantom_2: ::std::marker::PhantomData<&'a usize>,
 }
 
-impl <'a,M,R,A,K,V> MapReduceOp<'a,M,R,A,K,V>
-    where   M:Sync + Fn(A) -> BI<'a,(K,V)>,
-            R:Sync + Fn(&V,&V) -> V,
-            A:Send,
-            K:Send + Eq + ::std::hash::Hash + Clone,
-            V:Clone+Send
+impl<'a, M, R, A, K, V> MapReduceOp<'a, M, R, A, K, V>
+    where M: Sync + Fn(A) -> BI<'a, (K, V)>,
+          R: Sync + Fn(&V, &V) -> V,
+          A: Send,
+          K: Send + Eq + ::std::hash::Hash + Clone,
+          V: Clone + Send
 {
-    pub fn run(&self, chunks:BI<BI<A>>) -> HashMap<K,V> {
+    pub fn run(&self, chunks: BI<BI<A>>) -> HashMap<K, V> {
         let reducer = &self.reducer;
         let mapper = &self.mapper;
-        let each = |it: BI<A>| -> HashMap<K,V> {
-            let mut aggregates:HashMap<K,V> = HashMap::new();
-            for (k,v) in it.flat_map(|e| { mapper(e) }) {
+        let each = |it: BI<A>| -> HashMap<K, V> {
+            let mut aggregates: HashMap<K, V> = HashMap::new();
+            for (k, v) in it.flat_map(|e| mapper(e)) {
                 let val = aggregates.entry(k.clone());
                 match val {
                     Entry::Occupied(prev) => {
                         let next = reducer(prev.get(), &v);
                         *(prev.into_mut()) = next;
                     }
-                    Entry::Vacant(vac) => { vac.insert(v); }
+                    Entry::Vacant(vac) => {
+                        vac.insert(v);
+                    }
                 };
-            };
+            }
             aggregates
         };
         let mut pool = Pool::new(1 + ::num_cpus::get());
-        let halfway:Vec<HashMap<K,V>> = unsafe { pool.map(chunks, &each).collect() };
-        let mut result:HashMap<K,V> = HashMap::new();
+        let halfway: Vec<HashMap<K, V>> = unsafe { pool.map(chunks, &each).collect() };
+        let mut result: HashMap<K, V> = HashMap::new();
         for h in halfway.iter() {
-            for (k,v) in h.iter() {
+            for (k, v) in h.iter() {
                 let val = result.entry(k.clone());
                 match val {
                     Entry::Occupied(prev) => {
                         let next = reducer(prev.get(), v);
                         *(prev.into_mut()) = next.clone();
                     }
-                    Entry::Vacant(vac) => { vac.insert(v.clone()); }
+                    Entry::Vacant(vac) => {
+                        vac.insert(v.clone());
+                    }
                 };
-            };
-        };
+            }
+        }
         result
     }
 
-    pub fn new_map_reduce(map:M, reduce:R) -> MapReduceOp<'a,M,R,A,K,V> {
+    pub fn new_map_reduce(map: M, reduce: R) -> MapReduceOp<'a, M, R, A, K, V> {
         MapReduceOp {
-            mapper: map, reducer: reduce,
+            mapper: map,
+            reducer: reduce,
             _phantom: ::std::marker::PhantomData,
-            _phantom_2: ::std::marker::PhantomData
+            _phantom_2: ::std::marker::PhantomData,
         }
     }
 
-    pub fn map_reduce(map:M, reduce:R, chunks:BI<BI<A>>) -> HashMap<K,V> {
-        MapReduceOp::new_map_reduce(map,reduce).run(chunks)
+    pub fn map_reduce(map: M, reduce: R, chunks: BI<BI<A>>) -> HashMap<K, V> {
+        MapReduceOp::new_map_reduce(map, reduce).run(chunks)
     }
-
 }
 
-pub fn par_foreach<A,F>(chunks:BI<BI<A>>, func:&F)
-    where A:Send, F: Sync + Fn(A) -> () {
+pub fn par_foreach<A, F>(chunks: BI<BI<A>>, func: &F)
+    where A: Send,
+          F: Sync + Fn(A) -> ()
+{
 
     let mapper = &func;
-    let each = |it:BI<A>| -> () {
-        it.map(|e| { mapper(e) }).count();
-    };
+    let each = |it: BI<A>| -> () { it.map(|e| mapper(e)).count(); };
     let mut pool = Pool::new(1 + ::num_cpus::get());
-    let _:Vec<()> = unsafe { pool.map(chunks, &each).collect() };
+    let _: Vec<()> = unsafe { pool.map(chunks, &each).collect() };
 }
