@@ -6,8 +6,9 @@ authors = ["Mathieu Poumeyrol <kali@zoy.org>"]
 [dependencies]
 docopt = "*"
 docopt_macros = "*"
+error-chain = "*"
 rustc-serialize = "*"
-hyper = "*"
+reqwest = "*"
 glob = "*"
 regex = "*"
 bzip2 = "*"
@@ -23,6 +24,9 @@ scan_fmt = "*"
 pad = "*"
 itertools = "*"
 time = "0.1"
+clap = { version = "2.9", features = [ "unstable" ] }
+nom = "*"
+byteorder = "0.4.2"
 #tinycdb = "*"
 
 #[dependencies.scan_mac]

@@ -6,7 +6,6 @@ use helpers;
 use std::io;
 use std::fs;
 use std::error::Error;
-use std::io::prelude::*;
 
 use snappy_framed::read::SnappyFramedDecoder;
 use snappy_framed::read::CrcMode::Ignore;

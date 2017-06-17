@@ -13,6 +13,7 @@ struct Page {
         scribunto @4;
         json @5;
         flowboard @6;
+        massmessagelistcontent @7;
     }
     union {
         redirect @3: Text;

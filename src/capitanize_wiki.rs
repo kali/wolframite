@@ -1,7 +1,6 @@
 use xml::reader::{ EventReader, Events, XmlEvent };
 
 use std::{ io, fs, path};
-use std::io::prelude::*;
 
 use snappy_framed::write::SnappyFramedEncoder;
 
@@ -93,6 +92,7 @@ fn consume_revision<R:io::Read>(events:&mut Events<R>, page:&mut Page::Builder) 
                     "flow-board" => Page::Model::Flowboard,
                     "javascript" => Page::Model::Javascript,
                     "Scribunto" => Page::Model::Scribunto,
+                    "MassMessageListContent" => Page::Model::Massmessagelistcontent,
                     m => return Err(io::Error::new(io::ErrorKind::Other, "invalid model : ".to_string() + m))
                 })
             }

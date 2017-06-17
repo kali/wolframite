@@ -1,6 +1,3 @@
-#![feature(plugin)]
-#![plugin(docopt_macros)]
-
 extern crate wolframite;
 extern crate simple_parallel;
 extern crate num_cpus;

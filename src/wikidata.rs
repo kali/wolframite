@@ -1,6 +1,5 @@
 use std::io;
 use std::path;
-use std::io::prelude::*;
 use std::error::Error;
 
 use std::sync::Mutex;
@@ -44,7 +43,7 @@ pub struct Wikidata {
 impl Wikidata {
     fn for_date(date:&str) -> WikiResult<Wikidata> {
         let labels_file = helpers::data_dir_for("labels", "wikidata", date) + "/labels";
-        let labels = try!(Cdb::open(path::Path::new(&*labels_file)));
+        let labels = try!(Cdb::open(path::Path::new(&*labels_file)).map_err(|e| format!("Cdb Error: {:?}", e)));
         Ok(Wikidata {   date: date.to_string(),
                         labels:Mutex::new(labels) })
     }
@@ -53,7 +52,7 @@ impl Wikidata {
         let date1 = helpers::latest("labels", "wikidata").unwrap().unwrap();
         let date2 = helpers::latest("cap", "wikidata").unwrap().unwrap();
         if date1 != date2 {
-            Err(WikiError::Other("latest wikidate seems only partially compiled".to_string()))
+            Err("latest wikidate seems only partially compiled".to_string())?
         } else {
             Wikidata::for_date(&*date1)
         }

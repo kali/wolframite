@@ -3,5 +3,8 @@ extern crate capnpc;
 use std::path::Path;
 
 fn main() {
-    ::capnpc::compile(Path::new("src"), &[Path::new("src/wiki.capnp")]).unwrap();
+    capnpc::CompilerCommand::new()
+        .src_prefix("src")
+        .file("src/wiki.capnp")
+        .run().expect("schema compiler command");
 }
