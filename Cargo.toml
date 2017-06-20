@@ -27,7 +27,7 @@ time = "0.1"
 clap = { version = "2.9", features = [ "unstable" ] }
 nom = "*"
 byteorder = "0.4.2"
-#tinycdb = "*"
+tinycdb = "*"
 
 #[dependencies.scan_mac]
 #git = "https://github.com/mahkoh/scan"
@@ -37,6 +37,3 @@ path = "capn-wiki"
 
 [dependencies.url_aggregator]
 path = "url_aggregator"
-
-[dependencies.tinycdb]
-path = "/Users/kali/dev/github/tinycdb-rs"
